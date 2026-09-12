@@ -49,8 +49,6 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
   );
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [availability, setAvailability] = useState<string[]>([]);
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -66,7 +64,6 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
       Array.from(
         new Set([
           ...(timeSlotOptions.length ? timeSlotOptions : [...AVAILABILITY_TIME_SLOTS]),
-          ...selectedPeriods,
           ...availability
             .map((slot) => {
               const normalizedSlot = slot.trim();
@@ -76,8 +73,43 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
             .filter(Boolean),
         ]),
       ),
-    [availability, selectedPeriods, timeSlotOptions, weeklyAvailabilityDays],
+    [availability, timeSlotOptions, weeklyAvailabilityDays],
   );
+
+  const selectedDays = useMemo(() => {
+    const days = new Set<string>();
+
+    availability.forEach((slot) => {
+      const normalizedSlot = slot.trim();
+      if (weeklyAvailabilityDays.includes(normalizedSlot)) {
+        days.add(normalizedSlot);
+        return;
+      }
+      const matchingDay = weeklyAvailabilityDays.find((day) =>
+        normalizedSlot.startsWith(`${day} `),
+      );
+      if (matchingDay) days.add(matchingDay);
+    });
+
+    return Array.from(days);
+  }, [availability, weeklyAvailabilityDays]);
+
+  const selectedPeriods = useMemo(() => {
+    const periods = new Set<string>();
+
+    availability.forEach((slot) => {
+      const normalizedSlot = slot.trim();
+      const matchingDay = weeklyAvailabilityDays.find((day) =>
+        normalizedSlot.startsWith(`${day} `),
+      );
+      if (!matchingDay) return;
+
+      const period = normalizedSlot.slice(matchingDay.length).trim();
+      if (availabilityPeriods.includes(period)) periods.add(period);
+    });
+
+    return Array.from(periods);
+  }, [availability, availabilityPeriods, weeklyAvailabilityDays]);
 
   useEffect(() => {
     if (!isEditMode || !userProfile || skillIndex < 0) return;
@@ -132,36 +164,6 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
     );
   }, [selectedCategory, selectedImage, selectedImageFile, title]);
 
-  useEffect(() => {
-    if (!availability.length) return;
-
-    const nextDays = new Set<string>();
-    const nextPeriods = new Set<string>();
-
-    availability.forEach((slot) => {
-      const normalizedSlot = slot.trim();
-      const matchingDay = weeklyAvailabilityDays.find((day) => normalizedSlot.startsWith(`${day} `));
-      if (!matchingDay) return;
-
-      const period = normalizedSlot.slice(matchingDay.length).trim();
-      nextDays.add(matchingDay);
-
-      if (availabilityPeriods.includes(period)) {
-        nextPeriods.add(period);
-      }
-    });
-
-    const nextDaysList = Array.from(nextDays);
-    const nextPeriodsList = Array.from(nextPeriods);
-
-    setSelectedDays((current) =>
-      areSameSelections(current, nextDaysList) ? current : nextDaysList,
-    );
-    setSelectedPeriods((current) =>
-      areSameSelections(current, nextPeriodsList) ? current : nextPeriodsList,
-    );
-  }, [availability, availabilityPeriods, weeklyAvailabilityDays]);
-
   const addTag = () => {
     const trimmed = tagInput.trim();
     if (trimmed && !tags.includes(trimmed) && tags.length < 5) {
@@ -173,6 +175,11 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
   const removeTag = (tag: string) => setTags(tags.filter((item) => item !== tag));
 
   const syncAvailability = (days: string[], periods: string[]) => {
+    if (periods.length === 0) {
+      setAvailability(days);
+      return;
+    }
+
     const combinations = days.flatMap((day) => periods.map((period) => `${day} ${period}`));
     setAvailability(combinations);
   };
@@ -182,7 +189,6 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
       ? selectedDays.filter((value) => value !== day)
       : [...selectedDays, day];
 
-    setSelectedDays(nextDays);
     syncAvailability(nextDays, selectedPeriods);
   };
 
@@ -191,7 +197,6 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
       ? selectedPeriods.filter((value) => value !== period)
       : [...selectedPeriods, period];
 
-    setSelectedPeriods(nextPeriods);
     syncAvailability(selectedDays, nextPeriods);
   };
 
@@ -622,7 +627,8 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
                     })}
                   </div>
                 </div>
-
+ 
+                {/*
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
                     Time Periods *
@@ -660,6 +666,7 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
                     })}
                   </div>
                 </div>
+                */}
               </div>
             </div>
 

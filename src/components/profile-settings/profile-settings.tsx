@@ -679,7 +679,8 @@ function ProfileSettingsForm({
                       })}
                     </div>
                   </div>
-
+ 
+                  {/* 
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
                       Time Periods
@@ -717,6 +718,7 @@ function ProfileSettingsForm({
                       })}
                     </div>
                   </div>
+                  */}
                 </div>
               </div>
             </section>
