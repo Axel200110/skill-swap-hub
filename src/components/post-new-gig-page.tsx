@@ -10,7 +10,7 @@ import SelectField from "@/components/ui/select-field";
 import { useAuth } from "@/context/AuthContext";
 import type { ProviderGig } from "@/lib/auth";
 import { db, storage } from "@/lib/firebase";
-import { GIG_COVER_PRESETS, getGigCoverForCategory, isPresetGigCover } from "@/lib/gig-covers";
+import { GIG_COVER_PRESETS, getGigCoverForCategory } from "@/lib/gig-covers";
 import { ensureGigTitlePrefix } from "@/lib/gig-titles";
 import { useLookupOptions } from "@/lib/lookups";
 import { AVAILABILITY_DAYS, AVAILABILITY_TIME_SLOTS } from "@/lib/platform";
@@ -32,9 +32,10 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
   const serviceCategories = useLookupOptions("serviceCategories");
   const availabilityDayOptions = useLookupOptions("availabilityDays");
   const timeSlotOptions = useLookupOptions("availabilityTimeSlots");
-  const weeklyAvailabilityDays = availabilityDayOptions.length
-    ? availabilityDayOptions
-    : [...AVAILABILITY_DAYS];
+  const weeklyAvailabilityDays = useMemo(
+    () => (availabilityDayOptions.length ? availabilityDayOptions : [...AVAILABILITY_DAYS]),
+    [availabilityDayOptions],
+  );
 
   const skillIndex = isEditMode && gigId ? parseInt(gigId.replace("gig-", ""), 10) : -1;
 
@@ -44,9 +45,7 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [delivery, setDelivery] = useState(DELIVERY_OPTIONS[0]);
-  const [selectedImage, setSelectedImage] = useState<string>(
-    getGigCoverForCategory("Photography", "Photography", 0),
-  );
+  const [selectedImageOverride, setSelectedImageOverride] = useState<string | null>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [availability, setAvailability] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
@@ -59,6 +58,8 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
 
   const backHref = role === "both" ? "/my-gigs/both?tab=manage" : "/my-gigs/provider?tab=manage";
   const selectedCategory = category.trim();
+  const selectedImage =
+    selectedImageOverride ?? getGigCoverForCategory(selectedCategory || "Photography", title || selectedCategory, 0);
   const availabilityPeriods = useMemo(
     () =>
       Array.from(
@@ -134,9 +135,9 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
 
       const gigImages = userProfile.providerProfile?.gigImages || [];
       if (existingGig?.image) {
-        setSelectedImage(existingGig.image);
+        setSelectedImageOverride(existingGig.image);
       } else if (gigImages[skillIndex]) {
-        setSelectedImage(gigImages[skillIndex]);
+        setSelectedImageOverride(gigImages[skillIndex]);
       }
     }, 0);
 
@@ -154,15 +155,6 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
 
     return () => clearTimeout(timer);
   }, [userProfile]);
-
-  useEffect(() => {
-    if (selectedImageFile) return;
-    if (!isPresetGigCover(selectedImage)) return;
-
-    setSelectedImage(
-      getGigCoverForCategory(selectedCategory || "Photography", title || selectedCategory, 0),
-    );
-  }, [selectedCategory, selectedImage, selectedImageFile, title]);
 
   const addTag = () => {
     const trimmed = tagInput.trim();
@@ -190,14 +182,6 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
       : [...selectedDays, day];
 
     syncAvailability(nextDays, selectedPeriods);
-  };
-
-  const togglePeriod = (period: string) => {
-    const nextPeriods = selectedPeriods.includes(period)
-      ? selectedPeriods.filter((value) => value !== period)
-      : [...selectedPeriods, period];
-
-    syncAvailability(selectedDays, nextPeriods);
   };
 
   const isTitleInvalid = didAttemptSubmit && !title.trim();
@@ -627,7 +611,7 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
                     })}
                   </div>
                 </div>
- 
+
                 {/*
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
@@ -717,11 +701,12 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
                   key={preset.src}
                   type="button"
                   onClick={() => {
-                    setSelectedImage(preset.src);
+                    setSelectedImageOverride(preset.src);
                     setSelectedImageFile(null);
                   }}
                   className={`relative cursor-pointer overflow-hidden rounded-xl border-4 transition ${
-                    selectedImage === preset.src || decodeURIComponent(selectedImage).endsWith(preset.src.replace("/img/", ""))
+                    selectedImage === preset.src ||
+                    decodeURIComponent(selectedImage).endsWith(preset.src.replace("/img/", ""))
                       ? "scale-105 border-[#1453c4]"
                       : "border-transparent opacity-75 hover:opacity-100"
                   }`}
@@ -761,7 +746,7 @@ export default function PostNewGigPage({ role, mode = "create", gigId }: PostNew
                     }
 
                     setSelectedImageFile(file);
-                    setSelectedImage(URL.createObjectURL(file));
+                    setSelectedImageOverride(URL.createObjectURL(file));
                   }}
                   className="hidden"
                 />
@@ -906,13 +891,6 @@ function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
-}
-
-function areSameSelections(current: string[], next: string[]) {
-  return (
-    current.length === next.length &&
-    current.every((value, index) => value === next[index])
-  );
 }
 
 function DeleteIcon({ className }: { className?: string }) {
