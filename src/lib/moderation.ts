@@ -3,7 +3,7 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 import { db, storage } from "@/lib/firebase";
 
-export const ADMIN_CONTACT_EMAIL = "admin@skillswaphub.lk";
+export const ADMIN_CONTACT_EMAIL = "skillswaphub2026@gmail.com";
 export const MODERATION_EVIDENCE_ACCEPT =
   ".png,.jpg,.jpeg,.doc,.docx,image/png,image/jpeg,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export const MAX_MODERATION_EVIDENCE_SIZE_BYTES = 1 * 1024 * 1024;

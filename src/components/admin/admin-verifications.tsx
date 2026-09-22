@@ -1,5 +1,6 @@
 "use client";
 
+import NextImage from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
@@ -15,7 +16,10 @@ import {
 import { getDownloadURL, ref } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
-import type { ProviderVerificationStatus, StudentProofType } from "@/lib/platform";
+import type {
+  ProviderVerificationStatus,
+  StudentProofType,
+} from "@/lib/platform";
 import AdminFilePreviewModal from "@/components/admin/admin-file-preview-modal";
 import SelectField from "@/components/ui/select-field";
 
@@ -100,7 +104,9 @@ export default function AdminVerifications() {
       },
       (err) => {
         console.error("Error loading provider verifications:", err);
-        setError("Could not load verification requests. Check admin permissions.");
+        setError(
+          "Could not load verification requests. Check admin permissions.",
+        );
         setLoading(false);
       },
     );
@@ -110,13 +116,19 @@ export default function AdminVerifications() {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-      const nextAvatars = snapshot.docs.reduce<UserAvatarMap>((acc, docSnap) => {
-        const data = docSnap.data() as { profileImageUrl?: string };
-        if (typeof data.profileImageUrl === "string" && data.profileImageUrl.trim()) {
-          acc[docSnap.id] = data.profileImageUrl;
-        }
-        return acc;
-      }, {});
+      const nextAvatars = snapshot.docs.reduce<UserAvatarMap>(
+        (acc, docSnap) => {
+          const data = docSnap.data() as { profileImageUrl?: string };
+          if (
+            typeof data.profileImageUrl === "string" &&
+            data.profileImageUrl.trim()
+          ) {
+            acc[docSnap.id] = data.profileImageUrl;
+          }
+          return acc;
+        },
+        {},
+      );
 
       setUserAvatars(nextAvatars);
     });
@@ -133,7 +145,11 @@ export default function AdminVerifications() {
       { label: "Total Requests", value: String(rows.length), tone: "teal" },
       { label: "Pending Verification", value: String(pending), tone: "blue" },
       { label: "Approved Providers", value: String(approved), tone: "peach" },
-      { label: "Rejected Verifications", value: String(rejected), tone: "rose" },
+      {
+        label: "Rejected Verifications",
+        value: String(rejected),
+        tone: "rose",
+      },
     ];
   }, [rows]);
   const filteredRows = useMemo(() => {
@@ -143,22 +159,21 @@ export default function AdminVerifications() {
 
     return rows.filter((row) => row.status === statusFilter.toLowerCase());
   }, [rows, statusFilter]);
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / VERIFICATIONS_PER_PAGE));
-  const paginatedRows = filteredRows.slice(
-    (currentPage - 1) * VERIFICATIONS_PER_PAGE,
-    currentPage * VERIFICATIONS_PER_PAGE,
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredRows.length / VERIFICATIONS_PER_PAGE),
   );
-  const paginationItems = buildCompactPagination(currentPage, totalPages);
+  const effectivePage = Math.min(currentPage, totalPages);
+  const paginatedRows = filteredRows.slice(
+    (effectivePage - 1) * VERIFICATIONS_PER_PAGE,
+    effectivePage * VERIFICATIONS_PER_PAGE,
+  );
+  const paginationItems = buildCompactPagination(effectivePage, totalPages);
 
-  useEffect(() => {
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
     setCurrentPage(1);
-  }, [statusFilter]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  };
 
   const openProofPreview = async (row: VerificationRow) => {
     const existingUrl = downloadUrls[row.id] || row.proof?.downloadUrl;
@@ -171,7 +186,9 @@ export default function AdminVerifications() {
         const currentUser = auth.currentUser;
 
         if (!currentUser) {
-          setError("Please log in to the admin panel again before opening proof files.");
+          setError(
+            "Please log in to the admin panel again before opening proof files.",
+          );
           return;
         }
 
@@ -205,7 +222,10 @@ export default function AdminVerifications() {
     }
   };
 
-  const handleReview = async (row: VerificationRow, status: "approved" | "rejected") => {
+  const handleReview = async (
+    row: VerificationRow,
+    status: "approved" | "rejected",
+  ) => {
     const adminNote = notes[row.id]?.trim() || "";
     setBusyId(row.id);
     setError("");
@@ -257,7 +277,8 @@ export default function AdminVerifications() {
         await createNotification({
           userId: row.userId,
           title: "Provider Verification Approved",
-          description: "Your student proof was approved. You can now create service gigs.",
+          description:
+            "Your student proof was approved. You can now create service gigs.",
           type: "system",
           icon: "OK",
           tone: "emerald",
@@ -281,7 +302,9 @@ export default function AdminVerifications() {
         await createNotification({
           userId: row.userId,
           title: "Provider Verification Rejected",
-          description: adminNote || "Your student proof could not be approved. Please contact support.",
+          description:
+            adminNote ||
+            "Your student proof could not be approved. Please contact support.",
           type: "system",
           icon: "!",
           tone: "red",
@@ -293,7 +316,8 @@ export default function AdminVerifications() {
         targetUserId: row.userId,
         targetRole: "provider",
         verificationId: row.id,
-        actionType: status === "approved" ? "approve_provider" : "reject_provider",
+        actionType:
+          status === "approved" ? "approve_provider" : "reject_provider",
         actionNote: adminNote,
         approvalEmailQueued,
         createdAt: serverTimestamp(),
@@ -319,14 +343,15 @@ export default function AdminVerifications() {
             Student Provider Verifications
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Review uploaded student proof documents and approve verified students as service providers.
+            Review uploaded student proof documents and approve verified
+            students as service providers.
           </p>
         </div>
         <div className="grid shrink-0 gap-4 sm:grid-cols-[minmax(0,275px)_auto] lg:justify-end">
           <SelectField
             label="Verification Status"
             value={statusFilter}
-            onChange={setStatusFilter}
+            onChange={handleStatusFilterChange}
             options={verificationFilters}
             title="Filter verification requests"
             wrapperClassName="min-w-0"
@@ -335,7 +360,7 @@ export default function AdminVerifications() {
           />
           <button
             type="button"
-            onClick={() => setStatusFilter(verificationFilters[0])}
+            onClick={() => handleStatusFilterChange(verificationFilters[0])}
             className="mt-7 inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 sm:w-12"
             aria-label="Clear verification filters"
             title="Clear filters"
@@ -383,13 +408,21 @@ export default function AdminVerifications() {
                     <div className="flex min-w-0 items-center gap-4">
                       <Avatar
                         name={row.studentName}
-                        index={(currentPage - 1) * VERIFICATIONS_PER_PAGE + index}
+                        index={
+                          (effectivePage - 1) * VERIFICATIONS_PER_PAGE + index
+                        }
                         profileImageUrl={userAvatars[row.userId]}
                       />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-800">{row.studentName}</p>
-                        <p className="truncate text-xs text-slate-500">{row.email}</p>
-                        <p className="mt-0.5 text-[11px] text-slate-400">{formatDate(row.submittedAt)}</p>
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {row.studentName}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {row.email}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-slate-400">
+                          {formatDate(row.submittedAt)}
+                        </p>
                       </div>
                     </div>
                     <div className="min-w-0 pt-1 text-sm text-slate-700">
@@ -397,11 +430,15 @@ export default function AdminVerifications() {
                     </div>
                     <div className="min-w-0 text-sm text-slate-700">
                       {row.degree}
-                      <span className="mt-1 block text-xs text-slate-400">{row.yearOfStudy}</span>
+                      <span className="mt-1 block text-xs text-slate-400">
+                        {row.yearOfStudy}
+                      </span>
                     </div>
                     <div className="min-w-0 text-sm text-slate-700">
                       {row.proof?.fileType || "Student ID"}
-                      {(downloadUrls[row.id] || row.proof?.downloadUrl || row.proof?.storagePath) ? (
+                      {downloadUrls[row.id] ||
+                      row.proof?.downloadUrl ||
+                      row.proof?.storagePath ? (
                         <button
                           type="button"
                           onClick={() => void openProofPreview(row)}
@@ -429,7 +466,6 @@ export default function AdminVerifications() {
                 ))}
               </div>
             </div>
-
           </>
         ) : (
           <div className="px-6 py-16 text-center text-sm text-slate-500">
@@ -439,13 +475,14 @@ export default function AdminVerifications() {
 
         <div className="flex flex-col gap-4 px-4 py-4 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between">
           <p className="px-2">
-            Showing {paginatedRows.length} of {filteredRows.length} verification request{filteredRows.length === 1 ? "" : "s"}
+            Showing {paginatedRows.length} of {filteredRows.length} verification
+            request{filteredRows.length === 1 ? "" : "s"}
           </p>
           <div className="flex items-center gap-2">
             <PagerButton
               label="Previous"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={effectivePage === 1}
+              onClick={() => setCurrentPage(Math.max(1, effectivePage - 1))}
             />
             {paginationItems.map((item, index) =>
               item === "ellipsis" ? (
@@ -459,21 +496,26 @@ export default function AdminVerifications() {
                 <PagerButton
                   key={item}
                   label={String(item)}
-                  active={currentPage === item}
+                  active={effectivePage === item}
                   onClick={() => setCurrentPage(item)}
                 />
               ),
             )}
             <PagerButton
               label="Next"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={effectivePage === totalPages}
+              onClick={() =>
+                setCurrentPage(Math.min(totalPages, effectivePage + 1))
+              }
             />
           </div>
         </div>
       </section>
 
-      <AdminFilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
+      <AdminFilePreviewModal
+        file={previewFile}
+        onClose={() => setPreviewFile(null)}
+      />
       {reviewRow ? (
         <VerificationReviewModal
           row={reviewRow}
@@ -481,8 +523,8 @@ export default function AdminVerifications() {
           busy={busyId === reviewRow.id}
           hasProof={Boolean(
             downloadUrls[reviewRow.id] ||
-              reviewRow.proof?.downloadUrl ||
-              reviewRow.proof?.storagePath,
+            reviewRow.proof?.downloadUrl ||
+            reviewRow.proof?.storagePath,
           )}
           onClose={() => setReviewRow(null)}
           onAdminNoteChange={(value) =>
@@ -515,7 +557,8 @@ function VerificationReviewModal({
   onPreview: () => void;
   onReview: (status: "approved" | "rejected") => void;
 }) {
-  const studentMessage = row.resubmissionMessage?.trim() || row.studentMessage?.trim();
+  const studentMessage =
+    row.resubmissionMessage?.trim() || row.studentMessage?.trim();
   const previousAdminNote = row.adminNote?.trim();
   const modalRef = useRef<HTMLDivElement | null>(null);
   const [needsScroll, setNeedsScroll] = useState(false);
@@ -543,8 +586,14 @@ function VerificationReviewModal({
         className="relative my-auto w-full max-w-xl overflow-hidden rounded-[28px] border border-white/70 bg-white/95 p-3 text-slate-900 shadow-[0_24px_80px_rgba(15,23,42,0.25)] sm:rounded-3xl sm:p-5"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-blue-100/80 blur-3xl" aria-hidden="true" />
-        <div className="absolute -bottom-24 -left-20 h-56 w-56 rounded-full bg-emerald-100/80 blur-3xl" aria-hidden="true" />
+        <div
+          className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-blue-100/80 blur-3xl"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute -bottom-24 -left-20 h-56 w-56 rounded-full bg-emerald-100/80 blur-3xl"
+          aria-hidden="true"
+        />
         <button
           type="button"
           onClick={onClose}
@@ -568,7 +617,9 @@ function VerificationReviewModal({
               <h3 className="mt-1.5 break-words text-xl font-semibold leading-tight text-slate-950 sm:text-2xl">
                 {row.studentName}
               </h3>
-              <p className="mt-1 break-all text-sm text-slate-500">{row.email}</p>
+              <p className="mt-1 break-all text-sm text-slate-500">
+                {row.email}
+              </p>
             </div>
             <div className="shrink-0">
               <StatusPill status={row.status} />
@@ -576,9 +627,18 @@ function VerificationReviewModal({
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <InfoTile label="University" value={row.university || "Not provided"} />
-            <InfoTile label="Programme" value={`${row.degree || "Not provided"} - ${row.yearOfStudy || "Year not provided"}`} />
-            <InfoTile label="Proof Type" value={row.proof?.fileType || "Student ID"} />
+            <InfoTile
+              label="University"
+              value={row.university || "Not provided"}
+            />
+            <InfoTile
+              label="Programme"
+              value={`${row.degree || "Not provided"} - ${row.yearOfStudy || "Year not provided"}`}
+            />
+            <InfoTile
+              label="Proof Type"
+              value={row.proof?.fileType || "Student ID"}
+            />
             <InfoTile
               label={row.resubmittedAt ? "Resubmitted" : "Submitted"}
               value={formatDate(row.resubmittedAt || row.submittedAt)}
@@ -590,7 +650,9 @@ function VerificationReviewModal({
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1454cc]">
                 Student request
               </p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{studentMessage}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {studentMessage}
+              </p>
             </div>
           ) : null}
 
@@ -599,14 +661,18 @@ function VerificationReviewModal({
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-600">
                 Previous admin note
               </p>
-              <p className="mt-2 text-sm leading-6 text-red-900">{previousAdminNote}</p>
+              <p className="mt-2 text-sm leading-6 text-red-900">
+                {previousAdminNote}
+              </p>
             </div>
           ) : null}
 
           <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 p-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">Uploaded proof</p>
+                <p className="text-sm font-semibold text-slate-900">
+                  Uploaded proof
+                </p>
                 <p className="mt-1 break-all text-xs text-slate-500">
                   {row.proof?.fileName || "Proof document"}
                 </p>
@@ -662,7 +728,9 @@ function InfoTile({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
         {label}
       </p>
-      <p className="mt-1 break-words text-sm font-semibold text-slate-800">{value}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-slate-800">
+        {value}
+      </p>
     </div>
   );
 }
@@ -670,7 +738,9 @@ function InfoTile({ label, value }: { label: string; value: string }) {
 function formatDate(value: VerificationRow["submittedAt"]) {
   if (!value) return "Submitted recently";
   const date =
-    typeof value === "object" && "toDate" in value && typeof value.toDate === "function"
+    typeof value === "object" &&
+    "toDate" in value &&
+    typeof value.toDate === "function"
       ? value.toDate()
       : new Date(value as Date | string | number);
 
@@ -766,16 +836,24 @@ function StatCard({ stat }: { stat: StatItem }) {
             };
 
   return (
-    <article className={`relative overflow-hidden rounded-2xl border border-slate-300 bg-white p-5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-md ${toneClasses.hover}`}>
-      <div className={`absolute -right-8 -top-8 h-24 w-24 rounded-full ${toneClasses.wash}`} />
+    <article
+      className={`relative overflow-hidden rounded-2xl border border-slate-300 bg-white p-5 shadow-[0_6px_18px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-md ${toneClasses.hover}`}
+    >
+      <div
+        className={`absolute -right-8 -top-8 h-24 w-24 rounded-full ${toneClasses.wash}`}
+      />
       <div className="relative flex min-h-[120px] flex-col">
         <div className="flex items-start justify-between gap-4">
-          <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${toneClasses.accent}`}>
+          <span
+            className={`flex h-9 w-9 items-center justify-center rounded-xl ${toneClasses.accent}`}
+          >
             <StatIcon tone={stat.tone} />
           </span>
         </div>
         <div className="mt-auto">
-          <p className="text-3xl font-semibold tracking-tight text-slate-900">{stat.value}</p>
+          <p className="text-3xl font-semibold tracking-tight text-slate-900">
+            {stat.value}
+          </p>
           <p className="mt-2 text-sm text-slate-700">{stat.label}</p>
         </div>
       </div>
@@ -792,7 +870,9 @@ function StatusPill({ status }: { status: VerificationStatus }) {
         : "bg-[#ffdada] text-[#c81e1e]";
 
   return (
-    <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium capitalize ${toneClass}`}>
+    <span
+      className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium capitalize ${toneClass}`}
+    >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
       {status}
     </span>
@@ -826,7 +906,14 @@ function Avatar({
       className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-semibold ${tones[index % tones.length]}`}
     >
       {profileImageUrl ? (
-        <img src={profileImageUrl} alt={name} className="h-full w-full object-cover" />
+        <NextImage
+          src={profileImageUrl}
+          alt={name}
+          width={32}
+          height={32}
+          className="h-full w-full object-cover"
+          unoptimized
+        />
       ) : (
         initials || "ST"
       )}
@@ -876,7 +963,15 @@ function StatIcon({ tone }: { tone: StatItem["tone"] }) {
 
 function CheckCircleIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="8" />
       <path d="m8.8 12.2 2.1 2.1 4.4-4.7" />
     </svg>
@@ -915,7 +1010,15 @@ function buildCompactPagination(currentPage: number, totalPages: number) {
 
 function FilterResetIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4.5 w-4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M4 7h16" />
       <path d="M7 12h10" />
       <path d="M10 17h4" />
@@ -926,7 +1029,15 @@ function FilterResetIcon() {
 
 function ReviewActionIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M5 5h14v14H5z" />
       <path d="M8 9h8" />
       <path d="M8 13h5" />
@@ -937,7 +1048,15 @@ function ReviewActionIcon() {
 
 function CloseSmallIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
     </svg>
@@ -946,7 +1065,15 @@ function CloseSmallIcon() {
 
 function ClockIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="8" />
       <path d="M12 8v4l2.5 2" />
     </svg>
@@ -955,7 +1082,15 @@ function ClockIcon() {
 
 function ShieldCheckIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M12 3 6 5.5v5.7c0 3.9 2.6 7.5 6 8.8 3.4-1.3 6-4.9 6-8.8V5.5L12 3Z" />
       <path d="m9.4 11.7 1.8 1.8 3.5-3.7" />
     </svg>
@@ -964,7 +1099,15 @@ function ShieldCheckIcon() {
 
 function XCircleIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="8" />
       <path d="m9.5 9.5 5 5" />
       <path d="m14.5 9.5-5 5" />

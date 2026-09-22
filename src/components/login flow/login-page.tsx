@@ -479,7 +479,7 @@ function SuspendedAccountModal({
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <a
-              href="mailto:admin@skillswaphub.lk"
+              href="mailto:skillswaphub2026@gmail.com"
               className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-[#2b62e6] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1f55cc]"
             >
               Contact Admin

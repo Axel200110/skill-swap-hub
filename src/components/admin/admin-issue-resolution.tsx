@@ -170,21 +170,17 @@ export default function AdminIssueResolution() {
     });
   }, [reports, statusFilter]);
   const totalPages = Math.max(1, Math.ceil(filteredReports.length / REPORTS_PER_PAGE));
+  const effectivePage = Math.min(currentPage, totalPages);
   const paginatedReports = filteredReports.slice(
-    (currentPage - 1) * REPORTS_PER_PAGE,
-    currentPage * REPORTS_PER_PAGE,
+    (effectivePage - 1) * REPORTS_PER_PAGE,
+    effectivePage * REPORTS_PER_PAGE,
   );
-  const paginationItems = buildCompactPagination(currentPage, totalPages);
+  const paginationItems = buildCompactPagination(effectivePage, totalPages);
 
-  useEffect(() => {
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
     setCurrentPage(1);
-  }, [statusFilter]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  };
 
   const pendingReports = reports.filter(
     (report) => isPendingAdminReport(report),
@@ -483,7 +479,7 @@ export default function AdminIssueResolution() {
             <SelectField
               label="Report Status"
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={handleStatusFilterChange}
               options={statusFilters}
               title="Filter reports by status"
               wrapperClassName="min-w-0"
@@ -493,9 +489,7 @@ export default function AdminIssueResolution() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              setStatusFilter(statusFilters[0]);
-            }}
+            onClick={() => handleStatusFilterChange(statusFilters[0])}
             className="inline-flex h-12 w-12 items-center justify-center self-end rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
             aria-label="Clear report filters"
           >
@@ -630,8 +624,8 @@ export default function AdminIssueResolution() {
           <div className="flex items-center gap-2">
             <PagerButton
               label="Previous"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={effectivePage === 1}
+              onClick={() => setCurrentPage(Math.max(1, effectivePage - 1))}
             />
             {paginationItems.map((item, index) =>
               item === "ellipsis" ? (
@@ -645,15 +639,15 @@ export default function AdminIssueResolution() {
                 <PagerButton
                   key={item}
                   label={String(item)}
-                  active={currentPage === item}
+                  active={effectivePage === item}
                   onClick={() => setCurrentPage(item)}
                 />
               ),
             )}
             <PagerButton
               label="Next"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={effectivePage === totalPages}
+              onClick={() => setCurrentPage(Math.min(totalPages, effectivePage + 1))}
             />
           </div>
         </div>

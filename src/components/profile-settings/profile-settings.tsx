@@ -11,7 +11,7 @@ import {
   updatePassword,
 } from "firebase/auth";
 import { changeSignedInEmail, deactivateAccount, type UserProfile } from "@/lib/auth";
-import { AVAILABILITY_DAYS, AVAILABILITY_TIME_SLOTS } from "@/lib/platform";
+import { AVAILABILITY_DAYS } from "@/lib/platform";
 import { useLookupOptions } from "@/lib/lookups";
 import { propagateUserProfileReferences } from "@/lib/user-profile-propagation";
 import {
@@ -24,6 +24,23 @@ export type Role = "buyer" | "provider" | "both";
 
 const MAX_PROFILE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
 const PROFILE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+function getSelectedAvailabilityDays(availability: string[], days: string[]) {
+  const selectedDays = new Set<string>();
+
+  availability.forEach((slot) => {
+    const normalizedSlot = slot.trim();
+    const matchingDay = days.find((day) =>
+      normalizedSlot === day || normalizedSlot.startsWith(`${day} `),
+    );
+
+    if (matchingDay) {
+      selectedDays.add(matchingDay);
+    }
+  });
+
+  return Array.from(selectedDays);
+}
 
 function compressImageToBase64(
   file: File,
@@ -133,7 +150,6 @@ function ProfileSettingsForm({
   const showAvailability = role === "provider" || role === "both";
   const serviceCategories = useLookupOptions("serviceCategories");
   const availabilityDayOptions = useLookupOptions("availabilityDays");
-  const timeSlotOptions = useLookupOptions("availabilityTimeSlots");
   const weeklyAvailabilityDays = useMemo(
     () => (availabilityDayOptions.length ? availabilityDayOptions : [...AVAILABILITY_DAYS]),
     [availabilityDayOptions],
@@ -175,6 +191,12 @@ function ProfileSettingsForm({
   const [availability, setAvailability] = useState<string[]>(
     userProfile.providerProfile?.availability || [],
   );
+  const [selectedDays, setSelectedDays] = useState<string[]>(() =>
+    getSelectedAvailabilityDays(
+      userProfile.providerProfile?.availability || [],
+      weeklyAvailabilityDays,
+    ),
+  );
 
   // These switches map directly to the nested Firestore settings object.
   const [emailNotifications] = useState(
@@ -204,72 +226,6 @@ function ProfileSettingsForm({
   const profileSubline = isNonStudentBuyer
     ? userProfile.email || "Non-student buyer"
     : [degree, university].filter(Boolean).join(" - ");
-  const availabilityPeriods = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...(timeSlotOptions.length ? timeSlotOptions : [...AVAILABILITY_TIME_SLOTS]),
-          ...availability
-            .map((slot) => {
-              const normalizedSlot = slot.trim();
-              const matchingDay = weeklyAvailabilityDays.find((day) =>
-                normalizedSlot.startsWith(`${day} `),
-              );
-              return matchingDay ? normalizedSlot.slice(matchingDay.length).trim() : "";
-            })
-            .filter(Boolean),
-        ]),
-      ),
-    [availability, timeSlotOptions, weeklyAvailabilityDays],
-  );
-
-  const selectedDays = useMemo(() => {
-    if (!availability.length) {
-      return [] as string[];
-    }
-
-    const nextDays = new Set<string>();
-
-    availability.forEach((slot) => {
-      const normalizedSlot = slot.trim();
-      const matchingDay = weeklyAvailabilityDays.find((day) =>
-        normalizedSlot.startsWith(`${day} `),
-      );
-
-      if (matchingDay) {
-        nextDays.add(matchingDay);
-      }
-    });
-
-    return Array.from(nextDays);
-  }, [availability, weeklyAvailabilityDays]);
-
-  const selectedPeriods = useMemo(() => {
-    if (!availability.length) {
-      return [] as string[];
-    }
-
-    const nextPeriods = new Set<string>();
-
-    availability.forEach((slot) => {
-      const normalizedSlot = slot.trim();
-      const matchingDay = weeklyAvailabilityDays.find((day) =>
-        normalizedSlot.startsWith(`${day} `),
-      );
-
-      if (!matchingDay) {
-        return;
-      }
-
-      const period = normalizedSlot.slice(matchingDay.length).trim();
-      if (availabilityPeriods.includes(period)) {
-        nextPeriods.add(period);
-      }
-    });
-
-    return Array.from(nextPeriods);
-  }, [availability, availabilityPeriods, weeklyAvailabilityDays]);
-
   // Build one update payload so Firestore receives an atomic profile change.
   const handleSaveProfile = async () => {
     setIsSaving(true);
@@ -428,27 +384,13 @@ function ProfileSettingsForm({
     setNewOfferedSkill("");
   };
 
-  const syncAvailability = (days: string[], periods: string[]) => {
-    const combinations = days.flatMap((day) =>
-      periods.map((period) => `${day} ${period}`),
-    );
-    setAvailability(combinations);
-  };
-
   const toggleDay = (day: string) => {
     const nextDays = selectedDays.includes(day)
       ? selectedDays.filter((value) => value !== day)
       : [...selectedDays, day];
 
-    syncAvailability(nextDays, selectedPeriods);
-  };
-
-  const togglePeriod = (period: string) => {
-    const nextPeriods = selectedPeriods.includes(period)
-      ? selectedPeriods.filter((value) => value !== period)
-      : [...selectedPeriods, period];
-
-    syncAvailability(selectedDays, nextPeriods);
+    setSelectedDays(nextDays);
+    setAvailability(nextDays);
   };
 
   return (
@@ -633,10 +575,10 @@ function ProfileSettingsForm({
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-slate-500">
-                    Select your available days and time periods for your profile.
+                    Select your available days for your profile.
                   </p>
                   <span className="text-xs font-semibold text-slate-400">
-                    {availability.length} slot{availability.length === 1 ? "" : "s"} selected
+                    {selectedDays.length} day{selectedDays.length === 1 ? "" : "s"} selected
                   </span>
                 </div>
 
@@ -681,7 +623,7 @@ function ProfileSettingsForm({
                     </div>
                   </div>
  
-                  {/* 
+                  {/*
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
                       Time Periods
@@ -1407,21 +1349,6 @@ function LockIcon({ className }: IconProps) {
       <path d="M6 10h12v10H6z" />
       <path d="M8 10V7a4 4 0 0 1 8 0v3" />
       <path d="M12 14v2" />
-    </svg>
-  );
-}
-
-function BellIcon({ className }: IconProps) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path d="M15 17H9m8-4V9a5 5 0 0 0-10 0v4l-2 2h14z" />
-      <path d="M10 17a2 2 0 0 0 4 0" />
     </svg>
   );
 }

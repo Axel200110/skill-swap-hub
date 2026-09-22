@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import ModalPortal from "@/components/ui/modal-portal";
 
 type PreviewFile = {
@@ -17,16 +17,27 @@ export default function AdminFilePreviewModal({
   file: PreviewFile | null;
   onClose: () => void;
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [file?.url]);
-
   if (!file) {
     return null;
   }
 
+  return (
+    <AdminFilePreviewModalContent
+      key={file.url}
+      file={file}
+      onClose={onClose}
+    />
+  );
+}
+
+function AdminFilePreviewModalContent({
+  file,
+  onClose,
+}: {
+  file: PreviewFile;
+  onClose: () => void;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
   const previewKind = resolvePreviewKind(file);
 
   return (
@@ -48,7 +59,9 @@ export default function AdminFilePreviewModal({
                 {file.title}
               </h3>
               {file.fileName ? (
-                <p className="mt-1 truncate text-sm text-slate-500">{file.fileName}</p>
+                <p className="mt-1 truncate text-sm text-slate-500">
+                  {file.fileName}
+                </p>
               ) : null}
             </div>
             <button
@@ -89,7 +102,8 @@ export default function AdminFilePreviewModal({
                   This file can&apos;t be previewed inline.
                 </p>
                 <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-                  You can still open it directly from storage in the browser if needed.
+                  You can still open it directly from storage in the browser if
+                  needed.
                 </p>
                 <a
                   href={file.url}
@@ -119,10 +133,7 @@ function resolvePreviewKind(file: PreviewFile) {
     return "image";
   }
 
-  if (
-    normalizedType.includes("pdf") ||
-    /\.pdf(\?|$)/.test(normalizedName)
-  ) {
+  if (normalizedType.includes("pdf") || /\.pdf(\?|$)/.test(normalizedName)) {
     return "pdf";
   }
 

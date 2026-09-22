@@ -157,25 +157,28 @@ export default function ReportActionModal({
       return;
     }
 
+    if (!selectedFile) {
+      setFileError("Supporting file is required before submitting your response.");
+      return;
+    }
+
     setBusy(true);
     setNotice("");
     setReplyError("");
 
     try {
-      let evidenceFiles: ModerationEvidenceFile[] = [];
+      let evidenceFiles: ModerationEvidenceFile[];
 
-      if (selectedFile) {
-        try {
-          evidenceFiles = [await uploadModerationEvidence(userId, selectedFile)];
-        } catch (error) {
-          console.error("Error uploading moderation evidence:", error);
-          setNotice(
-            error instanceof Error
-              ? error.message
-              : "Could not upload the supporting file. Please try again.",
-          );
-          return;
-        }
+      try {
+        evidenceFiles = [await uploadModerationEvidence(userId, selectedFile)];
+      } catch (error) {
+        console.error("Error uploading moderation evidence:", error);
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : "Could not upload the supporting file. Please try again.",
+        );
+        return;
       }
 
       try {
@@ -351,7 +354,7 @@ export default function ReportActionModal({
                     ) : canReplyToReport ? (
                       <>
                         <p className="mt-2 text-sm leading-6 text-slate-500">
-                          Add your clarification and, if needed, attach one supporting file for admin review.
+                          Add your clarification and attach one supporting file for admin review.
                         </p>
                         <textarea
                           value={replyMessage}
@@ -380,7 +383,7 @@ export default function ReportActionModal({
                         <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-4">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <p className="text-sm font-semibold text-slate-700">Supporting File</p>
+                              <p className="text-sm font-semibold text-slate-700">Supporting File *</p>
                               <p className="mt-1 text-xs text-slate-500">
                                 Upload only 1 file. Allowed: JPG, PNG, DOC, DOCX. Max size: 1MB.
                               </p>
