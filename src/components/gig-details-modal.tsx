@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import ModalPortal from "@/components/ui/modal-portal";
 import { AVAILABILITY_DAYS } from "@/lib/platform";
+import { isFirebaseStorageImage } from "@/lib/image-urls";
 
 export type GigDetailsModalData = {
   title: string;
@@ -23,7 +24,11 @@ type GigDetailsModalProps = {
   onClose: () => void;
 };
 
-export default function GigDetailsModal({ gig, previewHref, onClose }: GigDetailsModalProps) {
+export default function GigDetailsModal({
+  gig,
+  previewHref,
+  onClose,
+}: GigDetailsModalProps) {
   const modalFacts = [
     { label: "Category", value: gig.category },
     { label: "Price", value: gig.price },
@@ -59,6 +64,7 @@ export default function GigDetailsModal({ gig, previewHref, onClose }: GigDetail
                 src={gig.image}
                 alt={gig.title}
                 fill
+                unoptimized={isFirebaseStorageImage(gig.image)}
                 className="object-contain p-4 md:p-6"
                 sizes="(min-width: 768px) 420px, 100vw"
               />
@@ -90,22 +96,30 @@ export default function GigDetailsModal({ gig, previewHref, onClose }: GigDetail
                 <dl className="grid gap-2.5 text-sm sm:grid-cols-2">
                   {modalFacts.map((fact) => (
                     <div key={fact.label} className="min-w-0">
-                      <dt className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{fact.label}</dt>
-                      <dd className="mt-1 break-words text-sm font-semibold leading-6 text-slate-800">{fact.value}</dd>
+                      <dt className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                        {fact.label}
+                      </dt>
+                      <dd className="mt-1 break-words text-sm font-semibold leading-6 text-slate-800">
+                        {fact.value}
+                      </dd>
                     </div>
                   ))}
                 </dl>
               </div>
 
               <div className="rounded-[18px] border border-slate-100 bg-[linear-gradient(180deg,#f8fbff,#ffffff)] px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.03)]">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Availability</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                  Availability
+                </p>
                 {availabilitySummary.days.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {availabilitySummary.days.map((day) => (
                       <span
                         key={day.short}
                         className={`min-w-8 rounded-full px-2 py-1 text-center text-[10px] font-bold ${
-                          day.active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                          day.active
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-100 text-slate-500"
                         }`}
                       >
                         {day.short}
@@ -159,7 +173,9 @@ function formatAvailabilitySummary(value: string | string[] | undefined) {
 
   const activeDays = new Set(
     AVAILABILITY_DAYS.filter((day) =>
-      cleanSlots.some((slot) => slot.toLowerCase().startsWith(day.toLowerCase())),
+      cleanSlots.some((slot) =>
+        slot.toLowerCase().startsWith(day.toLowerCase()),
+      ),
     ),
   );
 
@@ -174,7 +190,12 @@ function formatAvailabilitySummary(value: string | string[] | undefined) {
 
 function StarIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
       <path d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3.1-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9L12 2.5z" />
     </svg>
   );
@@ -182,7 +203,13 @@ function StarIcon({ className }: { className?: string }) {
 
 function CloseIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
       <path d="M6 6l12 12" strokeLinecap="round" />
       <path d="M18 6L6 18" strokeLinecap="round" />
     </svg>
