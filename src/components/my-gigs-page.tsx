@@ -1,17 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useState, useEffect } from "react";
-import {
-  collection,
-  doc,
-  onSnapshot,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { collection, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { buildGigRatingSummary } from "@/lib/gig-ratings";
 import { ensureGigTitlePrefix } from "@/lib/gig-titles";
@@ -19,8 +10,8 @@ import { formatRatingLabel } from "@/lib/ratings";
 import { useAuth } from "@/context/AuthContext";
 import type { ProviderGig, UserProfile } from "@/lib/auth";
 import ModalPortal from "@/components/ui/modal-portal";
+import GigCoverImage from "@/components/ui/gig-cover-image";
 import { getGigCoverForCategory } from "@/lib/gig-covers";
-import { isFirebaseStorageImage } from "@/lib/image-urls";
 
 type MyGigsPageContentProps = {
   activeTab?: "offered" | "manage";
@@ -81,23 +72,17 @@ function buildGigs(profile: UserProfile, requests: RequestItem[] = []): Gig[] {
 
       return {
         id: `gig-${index}`,
-        title: ensureGigTitlePrefix(gig.title),
-        shortTitle: ensureGigTitlePrefix(gig.title),
+          title: ensureGigTitlePrefix(gig.title),
+          shortTitle: ensureGigTitlePrefix(gig.title),
         category: gig.category || legacySkills[index] || "General",
-        image:
-          gig.image ||
-          customImages[index] ||
-          getGigCoverForCategory(gig.category, gig.title, index),
+        image: gig.image || customImages[index] || getGigCoverForCategory(gig.category, gig.title, index),
         rawIndex: index,
         summary:
           gig.summary ||
           gig.description ||
           providerBio ||
           `I offer ${gig.title.toLowerCase()} basics, guidance, and practical support for fellow university students.`,
-        availability:
-          gig.availability?.join(", ") ||
-          providerAvailability ||
-          "Flexible Schedule",
+        availability: gig.availability?.join(", ") || providerAvailability || "Flexible Schedule",
         proficiency: providerProfile?.proficiency || providerProficiency,
         rating: ratingSummary.rating,
         reviews: ratingSummary.count,
@@ -117,8 +102,8 @@ function buildGigs(profile: UserProfile, requests: RequestItem[] = []): Gig[] {
 
     return {
       id: `gig-${index}`,
-      title: ensureGigTitlePrefix(skill),
-      shortTitle: ensureGigTitlePrefix(skill),
+        title: ensureGigTitlePrefix(skill),
+        shortTitle: ensureGigTitlePrefix(skill),
       category: skill,
       image: customImages[index] || getGigCoverForCategory("", skill, index),
       rawIndex: index,
@@ -169,10 +154,7 @@ export default function MyGigsPageContent({
 
     // Request activity drives the performance summary shown above the gig list.
     const providerId = userProfile.uid;
-    const requestsQuery = query(
-      collection(db, "requests"),
-      where("providerId", "==", providerId),
-    );
+    const requestsQuery = query(collection(db, "requests"), where("providerId", "==", providerId));
 
     const unsubscribeRequests = onSnapshot(
       requestsQuery,
@@ -201,17 +183,11 @@ export default function MyGigsPageContent({
 
         const avgRating =
           ratings.length > 0
-            ? parseFloat(
-                (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(
-                  1,
-                ),
-              )
+            ? parseFloat((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1))
             : 0;
 
         const totalRequests = reqs.length;
-        const totalRejected = reqs.filter(
-          (r) => r.status === "rejected",
-        ).length;
+        const totalRejected = reqs.filter((r) => r.status === "rejected").length;
         const trustScore =
           totalRequests === 0
             ? "99%"
@@ -265,10 +241,8 @@ export default function MyGigsPageContent({
 
     try {
       const userRef = doc(db, "users", userProfile.uid);
-      const existingSkills = (userProfile.providerProfile?.skills ||
-        []) as string[];
-      const existingImages = (userProfile.providerProfile?.gigImages ||
-        []) as string[];
+      const existingSkills = (userProfile.providerProfile?.skills || []) as string[];
+      const existingImages = (userProfile.providerProfile?.gigImages || []) as string[];
       const existingGigs = [...(userProfile.providerProfile?.gigs || [])];
       const removedGigId = existingGigs[rawIndex]?.id;
       // All three arrays use the same index, so they must be removed together.
@@ -322,10 +296,7 @@ export default function MyGigsPageContent({
   const totalPages = Math.ceil(gigs.length / cardsPerPage);
   const safeCurrentPage = Math.min(currentPage, Math.max(1, totalPages));
   // Only the current slice is rendered, while the full list remains in memory.
-  const currentGigs = gigs.slice(
-    (safeCurrentPage - 1) * cardsPerPage,
-    safeCurrentPage * cardsPerPage,
-  );
+  const currentGigs = gigs.slice((safeCurrentPage - 1) * cardsPerPage, safeCurrentPage * cardsPerPage);
 
   return (
     <section className="space-y-6 pb-10">
@@ -334,9 +305,7 @@ export default function MyGigsPageContent({
         <div className="fixed right-5 top-5 z-50 w-[min(92vw,360px)] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_50px_-24px_rgba(15,23,42,0.45)]">
           <p className="text-sm font-semibold text-slate-900">{deleteNotice}</p>
           <p className="mt-0.5 text-xs text-slate-500">
-            {deleteNotice.includes("Failed")
-              ? "Nothing was removed."
-              : "The list has been updated."}
+            {deleteNotice.includes("Failed") ? "Nothing was removed." : "The list has been updated."}
           </p>
         </div>
       ) : null}
@@ -348,29 +317,10 @@ export default function MyGigsPageContent({
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Trust Score"
-          value={stats.trustScore}
-          sub=" "
-          accent
-        />
-        <MetricCard
-          title="Total Swaps"
-          value={stats.totalSwaps}
-          sub="Completed"
-        />
-        <MetricCard
-          title="Avg. Rating"
-          value={stats.avgRating}
-          sub={`${stats.reviewsCount} reviews`}
-          teal
-          stars
-        />
-        <MetricCard
-          title="Avg. Response"
-          value={stats.avgResponse}
-          sub="Highly Responsive"
-        />
+        <MetricCard title="Trust Score" value={stats.trustScore} sub=" " accent />
+        <MetricCard title="Total Swaps" value={stats.totalSwaps} sub="Completed" />
+        <MetricCard title="Avg. Rating" value={stats.avgRating} sub={`${stats.reviewsCount} reviews`} teal stars />
+        <MetricCard title="Avg. Response" value={stats.avgResponse} sub="Highly Responsive" />
       </div>
 
       {/* Offered gigs and management actions */}
@@ -379,9 +329,7 @@ export default function MyGigsPageContent({
           <Link
             href="?tab=offered"
             className={`border-b-2 pb-3 text-[1rem] font-semibold sm:text-[1.05rem] ${
-              !isManageTab
-                ? "border-[#1453c4] text-[#1453c4]"
-                : "border-transparent text-slate-600"
+              !isManageTab ? "border-[#1453c4] text-[#1453c4]" : "border-transparent text-slate-600"
             }`}
           >
             Offered Gigs
@@ -389,9 +337,7 @@ export default function MyGigsPageContent({
           <Link
             href="?tab=manage"
             className={`border-b-2 pb-3 text-[1rem] font-semibold sm:text-[1.05rem] ${
-              isManageTab
-                ? "border-[#1453c4] text-[#1453c4]"
-                : "border-transparent text-slate-600"
+              isManageTab ? "border-[#1453c4] text-[#1453c4]" : "border-transparent text-slate-600"
             }`}
           >
             Manage Gigs
@@ -411,19 +357,17 @@ export default function MyGigsPageContent({
                   </div>
                   <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[12px] font-bold text-slate-800 shadow-sm">
                     <RatingStarIcon className="h-3.5 w-3.5 text-amber-400" />
-                    <span>
-                      {gig.reviews > 0 ? formatRatingLabel(gig.rating) : "New"}
-                    </span>
+                    <span>{gig.reviews > 0 ? formatRatingLabel(gig.rating) : "New"}</span>
                   </div>
                   <Link
                     href={`/gig-preview/${role}?source=my-gigs&providerId=${encodeURIComponent(userProfile.uid)}&skillIndex=${gig.rawIndex}`}
                     className="relative block h-36 w-full overflow-hidden bg-slate-100 sm:h-[150px]"
                   >
-                    <Image
+                    <GigCoverImage
                       src={gig.image}
                       alt={gig.title}
-                      fill
-                      unoptimized={isFirebaseStorageImage(gig.image)}
+                      title={gig.title}
+                      category={gig.category}
                       sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 320px"
                       className="h-full w-full object-cover transition duration-300 hover:scale-105"
                     />
@@ -542,11 +486,7 @@ export default function MyGigsPageContent({
               );
             })}
             <button
-              onClick={() =>
-                setCurrentPage((prev) =>
-                  Math.min(prev + 1, Math.max(1, totalPages)),
-                )
-              }
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.max(1, totalPages)))}
               disabled={safeCurrentPage === totalPages || totalPages === 0}
               className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
             >
@@ -570,9 +510,7 @@ export default function MyGigsPageContent({
             >
               Post a New Gig
             </Link>
-            <p className="mt-1 text-xs text-slate-500">
-              Offer your expertise to fellow students
-            </p>
+            <p className="mt-1 text-xs text-slate-500">Offer your expertise to fellow students</p>
           </div>
         )}
       </section>
@@ -592,20 +530,14 @@ export default function MyGigsPageContent({
                   <DeleteIcon className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-red-500">
-                    Delete Gig
-                  </p>
+                  <p className="text-sm font-semibold text-red-500">Delete Gig</p>
                   <h2 className="text-base font-semibold text-slate-900">
                     Delete this gig from your profile?
                   </h2>
                 </div>
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                This will remove{" "}
-                <span className="font-semibold text-slate-700">
-                  {deleteTarget.shortTitle}
-                </span>{" "}
-                from your public gigs list.
+                This will remove <span className="font-semibold text-slate-700">{deleteTarget.shortTitle}</span> from your public gigs list.
               </p>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <button
@@ -648,23 +580,15 @@ function MetricCard({
 }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-        {title}
-      </p>
-      <p className="mt-2.5 text-[2.45rem] font-bold leading-none text-slate-900">
-        {value}
-      </p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{title}</p>
+      <p className="mt-2.5 text-[2.45rem] font-bold leading-none text-slate-900">{value}</p>
       {stars ? <Stars className="mt-2 justify-center text-teal-700" /> : null}
       {sub ? (
-        <p
-          className={`mt-1.5 text-sm ${teal ? "font-semibold text-teal-700" : "text-slate-500"}`}
-        >
+        <p className={`mt-1.5 text-sm ${teal ? "font-semibold text-teal-700" : "text-slate-500"}`}>
           {sub}
         </p>
       ) : null}
-      {accent ? (
-        <div className="mx-auto mt-3 h-1 w-full rounded-full bg-teal-500" />
-      ) : null}
+      {accent ? <div className="mx-auto mt-3 h-1 w-full rounded-full bg-teal-500" /> : null}
     </article>
   );
 }
@@ -688,12 +612,7 @@ function Stars({ className }: { className?: string }) {
 
 function RatingStarIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      aria-hidden="true"
-    >
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
       <path d="M10 1.7l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L2.2 7.4l5.4-.8L10 1.7z" />
     </svg>
   );

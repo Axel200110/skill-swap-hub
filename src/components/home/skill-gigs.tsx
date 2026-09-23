@@ -3,26 +3,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import {
-  collection,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { collection, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { usePathname, useRouter } from "next/navigation";
 import type { SVGProps } from "react";
 import ScrollReveal from "@/components/scroll-reveal";
 import GuestAuthModal from "@/components/guest-auth-modal";
 import SharedGigDetailsModal from "@/components/gig-details-modal";
+import GigCoverImage from "@/components/ui/gig-cover-image";
 import { db } from "@/lib/firebase";
 import { buildGigRatingSummary } from "@/lib/gig-ratings";
 import { ensureGigTitlePrefix } from "@/lib/gig-titles";
 import { formatRatingLabel } from "@/lib/ratings";
 import { useAuth } from "@/context/AuthContext";
 import { getGigCoverForCategory } from "@/lib/gig-covers";
-import { isFirebaseStorageImage } from "@/lib/image-urls";
 
 type LiveGig = {
   id: string;
@@ -81,7 +74,7 @@ export default function SkillGigsSection() {
   const isBuyerHome = pathname === "/home/buyer";
   const isProviderHome = pathname === "/home/provider";
   const isBothHome = pathname === "/home/both";
-  const hideOwnGig = !isBothHome;
+  const hideOwnGig = Boolean(userProfile);
   const viewAllHref = isBuyerHome
     ? "/find-services/buyer"
     : isProviderHome
@@ -96,16 +89,10 @@ export default function SkillGigsSection() {
         const statusSnapshot = await getDocs(
           query(collection(db, "gigs"), where("status", "==", "active")),
         );
-        const completedRequests = userProfile
-          ? (
-              await getDocs(
-                query(
-                  collection(db, "requests"),
-                  where("status", "==", "completed"),
-                ),
-              )
-            ).docs.map((requestDoc) => requestDoc.data())
-          : [];
+        const completedRequests =
+          userProfile && userProfile.accountStatus !== "suspended"
+            ? await loadCompletedRequestsForRatings()
+            : [];
 
         const gigRecords: GigRecord[] = statusSnapshot.docs
           .map((gigDoc, index) => {
@@ -120,9 +107,7 @@ export default function SkillGigsSection() {
                 title: ensureGigTitlePrefix(gig.title || "Student Skill"),
                 category: gig.category || "Service",
               },
-              completedRequests.filter(
-                (request) => request.providerId === (gig.providerId || ""),
-              ),
+              completedRequests.filter((request) => request.providerId === (gig.providerId || "")),
             );
 
             const rankedGig: RankedLiveGig = {
@@ -148,7 +133,9 @@ export default function SkillGigsSection() {
               serviceType: "Service Gig",
               tags: [gig.category || "Service", "Service Gig", availability],
               sortTime:
-                gig.updatedAt?.toMillis?.() || gig.createdAt?.toMillis?.() || 0,
+                gig.updatedAt?.toMillis?.() ||
+                gig.createdAt?.toMillis?.() ||
+                0,
             };
 
             return {
@@ -156,14 +143,7 @@ export default function SkillGigsSection() {
             };
           })
           .filter((gig) => gig.card.providerId)
-          .filter(
-            (gig) =>
-              !(
-                hideOwnGig &&
-                userProfile &&
-                gig.card.providerId === userProfile.uid
-              ),
-          )
+          .filter((gig) => !(hideOwnGig && userProfile && gig.card.providerId === userProfile.uid))
           .sort(
             (a, b) =>
               b.card.rating - a.card.rating ||
@@ -191,7 +171,9 @@ export default function SkillGigsSection() {
 
         setGigs(liveGigs);
       } catch (err) {
-        console.error("Error fetching live gigs for home section:", err);
+        if (!isPermissionDeniedError(err)) {
+          console.error("Error fetching live gigs for home section:", err);
+        }
         setGigs([]);
       } finally {
         setLoading(false);
@@ -202,10 +184,7 @@ export default function SkillGigsSection() {
   }, [hideOwnGig, userProfile]);
 
   return (
-    <section
-      id="explore-skills"
-      className="ssh-section-clear bg-white scroll-mt-20"
-    >
+    <section id="explore-skills" className="ssh-section-clear bg-white scroll-mt-20">
       {/* Featured live service gigs */}
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-6 sm:py-14">
         <ScrollReveal delayMs={40}>
@@ -224,11 +203,7 @@ export default function SkillGigsSection() {
         {loading ? (
           <div className="mt-6 grid auto-rows-fr grid-cols-1 items-stretch justify-items-stretch gap-4 min-[560px]:grid-cols-2 min-[760px]:grid-cols-3 min-[1280px]:grid-cols-4 sm:mt-8 min-[760px]:gap-3 xl:gap-5">
             {[1, 2, 3, 4].map((i) => (
-              <ScrollReveal
-                key={i}
-                delayMs={80 + i * 55}
-                className="flex h-full w-full max-w-[19rem] justify-self-center min-[560px]:max-w-none"
-              >
+              <ScrollReveal key={i} delayMs={80 + i * 55} className="flex h-full w-full max-w-[19rem] justify-self-center min-[560px]:max-w-none">
                 <div className="ssh-card flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                   <div className="h-28 w-full animate-pulse bg-slate-200 sm:h-32 xl:h-36" />
                   <div className="space-y-3 p-4 min-[760px]:p-3.5 xl:p-4">
@@ -246,23 +221,16 @@ export default function SkillGigsSection() {
         ) : gigs.length === 0 ? (
           <ScrollReveal delayMs={100}>
             <div className="ssh-card mt-8 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
-              <p className="text-sm font-semibold text-slate-900">
-                No live gigs yet
-              </p>
+              <p className="text-sm font-semibold text-slate-900">No live gigs yet</p>
               <p className="mt-2 text-sm text-slate-600">
-                Providers have not published any gigs yet. Once they do, the
-                latest gigs will appear here.
+                Providers have not published any gigs yet. Once they do, the latest gigs will appear here.
               </p>
             </div>
           </ScrollReveal>
         ) : (
           <div className="mt-6 grid auto-rows-fr grid-cols-1 items-stretch justify-items-stretch gap-4 min-[560px]:grid-cols-2 min-[760px]:grid-cols-3 min-[1280px]:grid-cols-4 sm:mt-8 min-[760px]:gap-3 xl:gap-5">
             {gigs.map((gig, index) => (
-              <ScrollReveal
-                key={gig.id}
-                delayMs={80 + index * 60}
-                className="flex h-full w-full max-w-[19rem] justify-self-center min-[560px]:max-w-none"
-              >
+              <ScrollReveal key={gig.id} delayMs={80 + index * 60} className="flex h-full w-full max-w-[19rem] justify-self-center min-[560px]:max-w-none">
                 <GigCard gig={gig} />
               </ScrollReveal>
             ))}
@@ -301,19 +269,36 @@ export default function SkillGigsSection() {
   );
 }
 
+async function loadCompletedRequestsForRatings() {
+  try {
+    const snapshot = await getDocs(
+      query(collection(db, "requests"), where("status", "==", "completed")),
+    );
+    return snapshot.docs.map((requestDoc) => requestDoc.data());
+  } catch (error) {
+    if (!isPermissionDeniedError(error)) {
+      console.error("Error fetching completed request ratings for home gigs:", error);
+    }
+    return [];
+  }
+}
+
+function isPermissionDeniedError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "permission-denied"
+  );
+}
+
 function GigCard({ gig }: { gig: LiveGig }) {
   const { userProfile, refreshProfile } = useAuth();
   const pathname = usePathname();
   const isBuyerHome = pathname === "/home/buyer";
   const isProviderHome = pathname === "/home/provider";
   const isBothHome = pathname === "/home/both";
-  const requestRole = isBuyerHome
-    ? "buyer"
-    : isProviderHome
-      ? "provider"
-      : isBothHome
-        ? "both"
-        : null;
+  const requestRole = isBuyerHome ? "buyer" : isProviderHome ? "provider" : isBothHome ? "both" : null;
   const previewHref = requestRole
     ? `/gig-preview/${requestRole}?source=home&providerId=${encodeURIComponent(gig.providerId)}&skillIndex=0${gig.gigId ? `&gigId=${encodeURIComponent(gig.gigId)}` : ""}&coverImage=${encodeURIComponent(gig.image)}`
     : `/gig-preview?providerId=${encodeURIComponent(gig.providerId)}&skillIndex=0${gig.gigId ? `&gigId=${encodeURIComponent(gig.gigId)}` : ""}&coverImage=${encodeURIComponent(gig.image)}`;
@@ -325,8 +310,8 @@ function GigCard({ gig }: { gig: LiveGig }) {
         (fav as { gigId?: string; providerId?: string }).gigId === gig.id ||
         ((fav as { gigId?: string; providerId?: string }).gigId
           ? false
-          : (fav as { providerId?: string }).providerId === gig.providerId),
-    ),
+          : (fav as { providerId?: string }).providerId === gig.providerId)
+    )
   );
 
   const handleToggleFavorite = async () => {
@@ -336,10 +321,7 @@ function GigCard({ gig }: { gig: LiveGig }) {
     }
 
     try {
-      const favorites = (userProfile.favorites || []) as Record<
-        string,
-        unknown
-      >[];
+      const favorites = (userProfile.favorites || []) as Record<string, unknown>[];
       let updatedFavorites;
 
       if (isFavorited) {
@@ -349,7 +331,7 @@ function GigCard({ gig }: { gig: LiveGig }) {
             !(
               !(fav as { gigId?: string; providerId?: string }).gigId &&
               (fav as { providerId?: string }).providerId === gig.providerId
-            ),
+            )
         );
       } else {
         const now = new Date();
@@ -393,11 +375,11 @@ function GigCard({ gig }: { gig: LiveGig }) {
     <>
       <article className="ssh-card flex h-full min-h-[310px] w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_12px_rgba(15,23,42,0.03)] transition-shadow hover:shadow-md min-[760px]:min-h-[332px] xl:min-h-[350px]">
         <div className="ssh-card-image relative h-28 bg-slate-100 sm:h-32 xl:h-40">
-          <Image
+          <GigCoverImage
             src={gig.image}
             alt={gig.title}
-            fill
-            unoptimized={isFirebaseStorageImage(gig.image)}
+            title={gig.title}
+            category={gig.category}
             className="object-cover"
             sizes="(min-width: 1280px) 320px, (min-width: 900px) 33vw, (min-width: 560px) 50vw, 100vw"
           />
@@ -409,15 +391,9 @@ function GigCard({ gig }: { gig: LiveGig }) {
             <button
               type="button"
               onClick={handleToggleFavorite}
-              aria-label={
-                isFavorited
-                  ? "Remove this gig from favorites"
-                  : "Save this gig to favorites"
-              }
+              aria-label={isFavorited ? "Remove this gig from favorites" : "Save this gig to favorites"}
               className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm transition sm:h-9 sm:w-9 ${
-                isFavorited
-                  ? "bg-red-500 text-white"
-                  : "bg-white/95 text-slate-700 hover:bg-red-50 hover:text-red-600"
+                isFavorited ? "bg-red-500 text-white" : "bg-white/95 text-slate-700 hover:bg-red-50 hover:text-red-600"
               }`}
             >
               <HeartIcon className="h-4.5 w-4.5" filled={isFavorited} />
@@ -449,11 +425,8 @@ function GigCard({ gig }: { gig: LiveGig }) {
             </span>
             <div className="min-w-0">
               <p className="truncate text-[12px] font-semibold leading-5 text-slate-700 xl:text-[13px]">
-                {gig.providerName}{" "}
-                <span className="font-medium text-slate-400">|</span>{" "}
-                <span className="font-medium text-slate-500">
-                  {gig.university}
-                </span>
+                {gig.providerName} <span className="font-medium text-slate-400">|</span>{" "}
+                <span className="font-medium text-slate-500">{gig.university}</span>
               </p>
             </div>
           </div>
@@ -536,13 +509,7 @@ function StarIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function HeartIcon({
-  className,
-  filled = false,
-}: {
-  className?: string;
-  filled?: boolean;
-}) {
+function HeartIcon({ className, filled = false }: { className?: string; filled?: boolean }) {
   return (
     <svg
       className={className}

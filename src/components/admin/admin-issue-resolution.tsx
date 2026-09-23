@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Timestamp, arrayUnion, collection, doc, getDoc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
+import { Timestamp, arrayUnion, collection, doc, getDoc, onSnapshot, serverTimestamp, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { getAdminReportStatus, isPendingAdminReport } from "@/lib/admin-panel";
@@ -170,21 +170,17 @@ export default function AdminIssueResolution() {
     });
   }, [reports, statusFilter]);
   const totalPages = Math.max(1, Math.ceil(filteredReports.length / REPORTS_PER_PAGE));
+  const effectivePage = Math.min(currentPage, totalPages);
   const paginatedReports = filteredReports.slice(
-    (currentPage - 1) * REPORTS_PER_PAGE,
-    currentPage * REPORTS_PER_PAGE,
+    (effectivePage - 1) * REPORTS_PER_PAGE,
+    effectivePage * REPORTS_PER_PAGE,
   );
-  const paginationItems = buildCompactPagination(currentPage, totalPages);
+  const paginationItems = buildCompactPagination(effectivePage, totalPages);
 
-  useEffect(() => {
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
     setCurrentPage(1);
-  }, [statusFilter]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  };
 
   const pendingReports = reports.filter(
     (report) => isPendingAdminReport(report),
@@ -203,7 +199,8 @@ export default function AdminIssueResolution() {
     setNotice(null);
 
     try {
-      await updateDoc(doc(db, "reports", report.id), {
+      const batch = writeBatch(db);
+      batch.update(doc(db, "reports", report.id), {
         status: nextStatus,
         adminNote: note,
         adminAction: nextStatus === "Resolve" ? "report_resolved" : "report_rejected",
@@ -220,12 +217,19 @@ export default function AdminIssueResolution() {
           createdAt: Timestamp.now(),
         }),
       });
+      const restoredAccount = await queueReportSuspensionRestore(batch, report, nextStatus);
+      await batch.commit();
 
       await notifyReportedUser(report, nextStatus === "Resolve" ? "resolve" : "reject", note, {
         openPopup: false,
       });
 
-      setNotice({ type: "success", text: `Report ${formatReportId(report.reportCode || report.id)} marked ${nextStatus}.` });
+      setNotice({
+        type: "success",
+        text: restoredAccount
+          ? `Report ${formatReportId(report.reportCode || report.id)} marked ${nextStatus}. The suspended account is active again.`
+          : `Report ${formatReportId(report.reportCode || report.id)} marked ${nextStatus}.`,
+      });
     } catch (error) {
       console.error("Error updating report:", error);
       setNotice({ type: "error", text: "Could not update the report." });
@@ -288,14 +292,16 @@ export default function AdminIssueResolution() {
     setNotice(null);
 
     try {
+      const reportReference = formatReportId(report.reportCode || report.id);
+
       await updateDoc(doc(db, "users", targetUserId), {
         accountStatus: "suspended",
         suspensionCode: "report_action",
         suspensionTitle: "Your account has been suspended by an admin",
         suspensionReason:
           getDraftNote(report.id) ||
-          `Your account was suspended after admin review of ${formatReportId(report.reportCode || report.id)}.`,
-        suspensionReportId: report.id,
+          `Your account was suspended after admin review of ${reportReference}.`,
+        suspensionReportId: reportReference,
         adminSuspensionReason: getDraftNote(report.id),
         suspendedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -473,7 +479,7 @@ export default function AdminIssueResolution() {
             <SelectField
               label="Report Status"
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={handleStatusFilterChange}
               options={statusFilters}
               title="Filter reports by status"
               wrapperClassName="min-w-0"
@@ -483,9 +489,7 @@ export default function AdminIssueResolution() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              setStatusFilter(statusFilters[0]);
-            }}
+            onClick={() => handleStatusFilterChange(statusFilters[0])}
             className="inline-flex h-12 w-12 items-center justify-center self-end rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
             aria-label="Clear report filters"
           >
@@ -620,8 +624,8 @@ export default function AdminIssueResolution() {
           <div className="flex items-center gap-2">
             <PagerButton
               label="Previous"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={effectivePage === 1}
+              onClick={() => setCurrentPage(Math.max(1, effectivePage - 1))}
             />
             {paginationItems.map((item, index) =>
               item === "ellipsis" ? (
@@ -635,15 +639,15 @@ export default function AdminIssueResolution() {
                 <PagerButton
                   key={item}
                   label={String(item)}
-                  active={currentPage === item}
+                  active={effectivePage === item}
                   onClick={() => setCurrentPage(item)}
                 />
               ),
             )}
             <PagerButton
               label="Next"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={effectivePage === totalPages}
+              onClick={() => setCurrentPage(Math.min(totalPages, effectivePage + 1))}
             />
           </div>
         </div>
@@ -1203,6 +1207,67 @@ function reportedUserId(report: ReportRecord) {
 
 function reportedUserName(report: ReportRecord) {
   return report.targetUserName || report.reportedUserName || report.reportedUser || "Reported user";
+}
+
+async function queueReportSuspensionRestore(
+  batch: ReturnType<typeof writeBatch>,
+  report: ReportRecord,
+  nextStatus: "Resolve" | "Reject",
+) {
+  const wasSuspensionReport =
+    normalizeModerationStatus(report.status || "") === "suspend" ||
+    report.adminAction === "account_suspended";
+
+  if (nextStatus !== "Resolve") {
+    return false;
+  }
+
+  const targetUserId = reportedUserId(report);
+  if (!targetUserId) {
+    return false;
+  }
+
+  const userRef = doc(db, "users", targetUserId);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) {
+    return false;
+  }
+
+  const user = userSnap.data() as {
+    accountStatus?: string;
+    suspensionCode?: string;
+    suspensionReportId?: string;
+  };
+  const suspensionReportIds = [
+    report.id,
+    formatReportId(report.id),
+    report.reportCode || "",
+    report.reportCode ? formatReportId(report.reportCode) : "",
+  ].filter(Boolean);
+  const isSameReportSuspension =
+    typeof user.suspensionReportId === "string" &&
+    suspensionReportIds.includes(user.suspensionReportId);
+  const isLegacyReportSuspension =
+    wasSuspensionReport &&
+    !user.suspensionReportId &&
+    (user.suspensionCode === "report_action" || !user.suspensionCode);
+
+  if (user.accountStatus !== "suspended" || (!isSameReportSuspension && !isLegacyReportSuspension)) {
+    return false;
+  }
+
+  batch.update(userRef, {
+    accountStatus: "active",
+    suspensionCode: "",
+    suspensionTitle: "",
+    suspensionReason: "",
+    suspensionReportId: "",
+    adminSuspensionReason: "",
+    suspendedAt: null,
+    updatedAt: serverTimestamp(),
+  });
+
+  return true;
 }
 
 function reportedUserEmail(report: ReportRecord, userEmails: UserEmailMap) {

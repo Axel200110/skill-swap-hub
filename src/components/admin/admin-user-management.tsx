@@ -104,6 +104,9 @@ export default function AdminUserManagement() {
             id: docSnap.id,
             ...(docSnap.data() as Omit<ManagedUser, "id">),
           }))
+          .filter(
+            (user) => normalizeStatus(user.accountStatus || "active") !== "deleted",
+          )
           .sort((left, right) => toMillis(right.createdAt) - toMillis(left.createdAt));
 
         setUsers(nextUsers);
@@ -146,7 +149,7 @@ export default function AdminUserManagement() {
     return users.filter((user) => {
       const matchesSearch =
         !search ||
-        [user.name, user.email, user.university, user.degree, user.role]
+        [user.name, user.email, user.university, user.degree, adminUserRole(user)]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(search));
 
@@ -157,10 +160,10 @@ export default function AdminUserManagement() {
           ? accountStatus.startsWith("pending")
           : accountStatus === normalizeStatus(accountFilter));
 
-      const role = normalizeAdminRole(user.role || "buyer");
+      const role = adminUserRole(user);
       const matchesRole =
         roleFilter === "All Roles" ||
-        (normalizeAdminRole(roleFilter) === "buyer" && (role === "buyer" || role === "both")) ||
+        (normalizeAdminRole(roleFilter) === "buyer" && role === "both") ||
         (normalizeAdminRole(roleFilter) === "provider" && (role === "provider" || role === "both")) ||
         role === normalizeAdminRole(roleFilter);
 
@@ -186,21 +189,12 @@ export default function AdminUserManagement() {
   );
   const suspendedUsers = users.filter((user) => normalizeStatus(user.accountStatus || "") === "suspended");
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / USERS_PER_PAGE));
+  const displayedPage = Math.min(currentPage, totalPages);
   const paginatedUsers = filteredUsers.slice(
-    (currentPage - 1) * USERS_PER_PAGE,
-    currentPage * USERS_PER_PAGE,
+    (displayedPage - 1) * USERS_PER_PAGE,
+    displayedPage * USERS_PER_PAGE,
   );
-  const paginationItems = buildCompactPagination(currentPage, totalPages);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, roleFilter, typeFilter, accountFilter, verificationFilter]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  const paginationItems = buildCompactPagination(displayedPage, totalPages);
 
   const handleAccountStatus = async (
     user: ManagedUser,
@@ -247,8 +241,8 @@ export default function AdminUserManagement() {
           type: "system",
           icon: nextStatus === "active" ? "check-circle" : "alert-triangle",
           tone: nextStatus === "active" ? "emerald" : "red",
-          href: notificationHrefForRole(user.role),
-          destination: notificationHrefForRole(user.role),
+          href: notificationHrefForRole(adminUserRole(user)),
+          destination: notificationHrefForRole(adminUserRole(user)),
         });
       }
 
@@ -269,7 +263,7 @@ export default function AdminUserManagement() {
     const rows = filteredUsers.map((user) => [
       user.name || "",
       user.email || "",
-      roleLabel(user.role),
+      roleLabel(adminUserRole(user)),
       accountTypeLabel(user.accountType),
       accountStatusLabel(user.accountStatus),
       verificationLabel(user.providerVerificationStatus),
@@ -355,7 +349,10 @@ export default function AdminUserManagement() {
               <input
                 type="search"
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Name, email, role..."
                 className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
               />
@@ -365,7 +362,10 @@ export default function AdminUserManagement() {
           <SelectField
             label="Role"
             value={roleFilter}
-            onChange={setRoleFilter}
+            onChange={(value) => {
+              setRoleFilter(value);
+              setCurrentPage(1);
+            }}
             options={roleFilters}
             title="Filter by role"
             wrapperClassName="min-w-0"
@@ -376,7 +376,10 @@ export default function AdminUserManagement() {
           <SelectField
             label="User Type"
             value={typeFilter}
-            onChange={setTypeFilter}
+            onChange={(value) => {
+              setTypeFilter(value);
+              setCurrentPage(1);
+            }}
             options={typeFilters}
             title="Filter by user type"
             wrapperClassName="min-w-0"
@@ -387,7 +390,10 @@ export default function AdminUserManagement() {
           <SelectField
             label="Account Status"
             value={accountFilter}
-            onChange={setAccountFilter}
+            onChange={(value) => {
+              setAccountFilter(value);
+              setCurrentPage(1);
+            }}
             options={accountFilters}
             title="Filter by account status"
             wrapperClassName="min-w-0"
@@ -398,7 +404,10 @@ export default function AdminUserManagement() {
           <SelectField
             label="Verification"
             value={verificationFilter}
-            onChange={setVerificationFilter}
+            onChange={(value) => {
+              setVerificationFilter(value);
+              setCurrentPage(1);
+            }}
             options={verificationFilters}
             title="Filter by verification status"
             wrapperClassName="min-w-0"
@@ -416,6 +425,7 @@ export default function AdminUserManagement() {
                 setTypeFilter(typeFilters[0]);
                 setAccountFilter(accountFilters[0]);
                 setVerificationFilter(verificationFilters[0]);
+                setCurrentPage(1);
               }}
               className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
               aria-label="Clear filters"
@@ -449,7 +459,8 @@ export default function AdminUserManagement() {
                 const isSuspended = normalizeStatus(user.accountStatus || "") === "suspended";
                 const isSelf = targetUserId === userProfile?.uid;
                 const isStudentAccount = normalizeStatus(user.accountType || "") === "student";
-                const isAdminAccount = normalizeAdminRole(user.role) === "admin";
+                const displayRole = adminUserRole(user);
+                const isAdminAccount = displayRole === "admin";
 
                 return (
                   <div
@@ -479,7 +490,7 @@ export default function AdminUserManagement() {
                     </div>
 
                     <div className="justify-self-center">
-                      <StatusChip tone={roleTone(user.role)}>{roleLabel(user.role)}</StatusChip>
+                      <StatusChip tone={roleTone(displayRole)}>{roleLabel(displayRole)}</StatusChip>
                     </div>
                     <span className="justify-self-center font-medium text-slate-600">{accountTypeLabel(user.accountType)}</span>
                     <div className="justify-self-center space-y-1.5 text-center">
@@ -544,8 +555,8 @@ export default function AdminUserManagement() {
           <div className="flex items-center gap-2">
             <PagerButton
               label="Previous"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={displayedPage === 1}
+              onClick={() => setCurrentPage(Math.max(1, displayedPage - 1))}
             />
             {paginationItems.map((item, index) =>
               item === "ellipsis" ? (
@@ -559,15 +570,15 @@ export default function AdminUserManagement() {
                 <PagerButton
                   key={item}
                   label={String(item)}
-                  active={currentPage === item}
+                  active={displayedPage === item}
                   onClick={() => setCurrentPage(item)}
                 />
               ),
             )}
             <PagerButton
               label="Next"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={displayedPage === totalPages}
+              onClick={() => setCurrentPage(Math.min(totalPages, displayedPage + 1))}
             />
           </div>
         </div>
@@ -728,6 +739,24 @@ function roleLabel(role?: string) {
   if (normalized === "provider") return "Provider";
   if (normalized === "admin") return "Admin";
   return "Buyer";
+}
+
+function adminUserRole(user: ManagedUser) {
+  const normalizedRole = normalizeAdminRole(user.role || "buyer");
+  if (normalizedRole === "admin" || normalizedRole === "both") {
+    return normalizedRole;
+  }
+
+  const accountType = normalizeStatus(user.accountType || "");
+  const verificationStatus = normalizeStatus(
+    user.providerVerificationStatus || "not_required",
+  );
+
+  if (accountType === "student" && verificationStatus !== "not_required") {
+    return "provider";
+  }
+
+  return normalizedRole;
 }
 
 function accountTone(status?: string): "cyan" | "amber" | "rose" {
@@ -915,7 +944,6 @@ function ReportsModal({
               <div className="space-y-4">
                 {reports.map((report) => {
                   const displayStatus = getAdminReportStatus(report);
-                  const normalizedStatus = normalizeStatus(displayStatus);
                   const isPending = isPendingAdminReport(report);
 
                   return (

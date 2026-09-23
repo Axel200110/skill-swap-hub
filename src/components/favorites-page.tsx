@@ -11,7 +11,7 @@ import { formatRatingLabel } from "@/lib/ratings";
 import { doc, updateDoc } from "firebase/firestore";
 import SharedGigDetailsModal from "@/components/gig-details-modal";
 import { isRole, type Role } from "@/lib/role-routes";
-import { isFirebaseStorageImage } from "@/lib/image-urls";
+import GigCoverImage from "@/components/ui/gig-cover-image";
 
 type SavedSkill = {
   id: string;
@@ -36,10 +36,7 @@ export default function FavoritesPage() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const categoryOptions = useLookupOptions("serviceCategories");
-  const filterOptions = useMemo(
-    () => ["All", ...categoryOptions],
-    [categoryOptions],
-  );
+  const filterOptions = useMemo(() => ["All", ...categoryOptions], [categoryOptions]);
 
   // Favorites are stored inside the user's profile, so no extra query is needed.
   const savedSkills = useMemo(() => {
@@ -74,11 +71,9 @@ export default function FavoritesPage() {
         skill.category.toLowerCase() === activeFilter.toLowerCase();
       const matchesSearch =
         query.length === 0 ||
-        [
-          ensureGigTitlePrefix(skill.title),
-          skill.category,
-          skill.instructor,
-        ].some((value) => (value || "").toLowerCase().includes(query));
+        [ensureGigTitlePrefix(skill.title), skill.category, skill.instructor].some((value) =>
+          (value || "").toLowerCase().includes(query)
+        );
 
       return matchesFilter && matchesSearch;
     });
@@ -108,8 +103,8 @@ export default function FavoritesPage() {
               Saved Gigs
             </h1>
             <p className="mt-1.5 text-[13px] leading-5 text-slate-500">
-              Keep your favourite gig cards in one place and revisit them when
-              you are ready to book, compare, or share with a friend.
+              Keep your favourite gig cards in one place and revisit them when you
+              are ready to book, compare, or share with a friend.
             </p>
           </div>
 
@@ -117,9 +112,7 @@ export default function FavoritesPage() {
             <SummaryPill label="Saved" value={savedSkills.length.toString()} />
             <SummaryPill
               label="Categories"
-              value={new Set(
-                savedSkills.map((s) => s.category),
-              ).size.toString()}
+              value={new Set(savedSkills.map((s) => s.category)).size.toString()}
             />
           </div>
         </div>
@@ -171,8 +164,8 @@ export default function FavoritesPage() {
           <p className="mt-2 text-sm text-slate-500">
             {savedSkills.length === 0
               ? "Browse gig cards and save your favorites here!"
-              : "Try a different search term or choose another category."}
-          </p>
+                : "Try a different search term or choose another category."}
+            </p>
         </div>
       )}
     </section>
@@ -240,11 +233,11 @@ function SavedSkillCard({
     <>
       <article className="flex min-h-[360px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_12px_rgba(15,23,42,0.03)] transition-shadow hover:shadow-md">
         <div className="relative h-40 bg-slate-100">
-          <Image
+          <GigCoverImage
             src={skill.image}
             alt={displayTitle}
-            fill
-            unoptimized={isFirebaseStorageImage(skill.image)}
+            title={displayTitle}
+            category={skill.category}
             sizes="(min-width: 1536px) 18vw, (min-width: 1024px) 25vw, 100vw"
             className="object-cover"
           />
@@ -288,8 +281,7 @@ function SavedSkillCard({
             )}
             <div className="min-w-0">
               <p className="truncate text-[13px] font-semibold leading-5 text-slate-700">
-                {skill.instructor}{" "}
-                <span className="font-medium text-slate-400">|</span>{" "}
+                {skill.instructor} <span className="font-medium text-slate-400">|</span>{" "}
                 <span className="font-medium text-slate-500">
                   {skill.university || "Sri Lankan University"}
                 </span>
@@ -309,9 +301,7 @@ function SavedSkillCard({
               </span>
             </div>
             <div className="mt-2 flex items-center justify-between gap-3">
-              <span className="truncate text-[11px] text-slate-400">
-                {skill.savedAt}
-              </span>
+              <span className="truncate text-[11px] text-slate-400">{skill.savedAt}</span>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button

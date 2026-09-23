@@ -1,45 +1,22 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type MouseEvent,
-  type ReactNode,
-} from "react";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  onSnapshot,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { addDoc, collection, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
 import { buildGigRatingSummary, requestMatchesGig } from "@/lib/gig-ratings";
 import { ensureGigTitlePrefix } from "@/lib/gig-titles";
 import { formatRatingLabel } from "@/lib/ratings";
-import {
-  scopedHref,
-  resolveRole,
-  type Role,
-  type SiteRole,
-} from "@/lib/role-routes";
+import { scopedHref, resolveRole, type Role, type SiteRole } from "@/lib/role-routes";
 import type { UserProfile } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
 import { createNotification } from "@/lib/notifications";
 import { AVAILABILITY_DAYS, inferServiceCategory } from "@/lib/platform";
 import { getGigCoverForCategory } from "@/lib/gig-covers";
 import ReviewFeedbackCard from "@/components/reviews/review-card";
-import { isFirebaseStorageImage } from "@/lib/image-urls";
+import GigCoverImage from "@/components/ui/gig-cover-image";
 
 type GigPreviewPageProps = {
   role: SiteRole;
@@ -101,8 +78,8 @@ const fallbackGig: GigPreviewData = {
   price: 5000,
   availability: "3-Day Delivery",
   rating: 0,
-  reviews: 0,
-  reviewCards: [],
+    reviews: 0,
+    reviewCards: [],
   image: "/img/gig-graphic.png",
   value: "LKR 5,000",
   delivery: "3-Day Delivery",
@@ -145,17 +122,13 @@ export default function GigPreviewPage({
 
     try {
       // The stable gig key prevents duplicate saves for the same card.
-      const favorites = (userProfile.favorites || []) as Record<
-        string,
-        unknown
-      >[];
+      const favorites = (userProfile.favorites || []) as Record<string, unknown>[];
       let updatedFavorites;
 
       if (isFavorited) {
         updatedFavorites = favorites.filter(
           (fav) =>
-            (fav as { gigId?: string; providerId?: string }).gigId !==
-              gig.gigId &&
+            (fav as { gigId?: string; providerId?: string }).gigId !== gig.gigId &&
             !(
               !(fav as { gigId?: string; providerId?: string }).gigId &&
               (fav as { providerId?: string }).providerId === gig.providerId
@@ -231,30 +204,22 @@ export default function GigPreviewPage({
             delivery?: string;
           };
 
-          const matchedProviderCover = await resolveProviderGigCover(
-            publicGig.providerId || providerId,
-            {
-              gigId,
-              title: publicGig.title || "",
-              category: publicGig.category || "",
-            },
-          );
+          const matchedProviderCover = await resolveProviderGigCover(publicGig.providerId || providerId, {
+            gigId,
+            title: publicGig.title || "",
+            category: publicGig.category || "",
+          });
 
           const publicGigDetails: GigPreviewData = {
             gigId: publicGig.gigId || gigId,
             providerId: publicGig.providerId || providerId || "guest-provider",
             providerName: publicGig.providerName || "Campus Student",
-            providerDegree:
-              publicGig.degreeName ||
-              publicGig.yearOfStudy ||
-              "Verified Student",
+            providerDegree: publicGig.degreeName || publicGig.yearOfStudy || "Verified Student",
             providerRole: "provider",
             university: publicGig.university || "Sri Lankan University",
             proficiency: "Skilled",
             skill: publicGig.title || publicGig.category || "Student Support",
-            skills: [
-              publicGig.title || publicGig.category || "Student Support",
-            ],
+            skills: [publicGig.title || publicGig.category || "Student Support"],
             title: ensureGigTitlePrefix(publicGig.title || "Student Skill Gig"),
             category: publicGig.category || "Service",
             summary:
@@ -271,11 +236,7 @@ export default function GigPreviewPage({
               publicGig.image ||
               publicGig.sampleWorkUrl ||
               coverImage ||
-              getGigCoverForCategory(
-                publicGig.category,
-                publicGig.title,
-                Math.max(skillIndex, 0),
-              ),
+              getGigCoverForCategory(publicGig.category, publicGig.title, Math.max(skillIndex, 0)),
             value: "20",
             delivery: publicGig.delivery || "Flexible",
             match: 95,
@@ -300,16 +261,10 @@ export default function GigPreviewPage({
 
         const user = providerSnap.data() as UserProfile;
         const profile = user.providerProfile;
-        const skills = profile?.skills?.length
-          ? profile.skills
-          : ["Student Support"];
+        const skills = profile?.skills?.length ? profile.skills : ["Student Support"];
         const profileGigs = profile?.gigs || [];
-        const normalizedGigSnap = gigId
-          ? await getDoc(doc(db, "gigs", gigId))
-          : null;
-        const normalizedGig = normalizedGigSnap?.exists()
-          ? normalizedGigSnap.data()
-          : null;
+        const normalizedGigSnap = gigId ? await getDoc(doc(db, "gigs", gigId)) : null;
+        const normalizedGig = normalizedGigSnap?.exists() ? normalizedGigSnap.data() : null;
         const matchedGigIndex = findMatchingProviderGigIndex(profileGigs, {
           gigId,
           title: String(normalizedGig?.title || ""),
@@ -320,15 +275,12 @@ export default function GigPreviewPage({
             ? matchedGigIndex
             : Math.min(Math.max(skillIndex, 0), Math.max(skills.length - 1, 0));
         const safeSkillIndex = resolvedSkillIndex;
-        const storedGig =
-          gigId && matchedGigIndex < 0
-            ? undefined
-            : profileGigs[safeSkillIndex];
+        const storedGig = gigId && matchedGigIndex < 0 ? undefined : profileGigs[safeSkillIndex];
         const skill = String(
           normalizedGig?.title ||
-            skills[safeSkillIndex] ||
-            storedGig?.title ||
-            skills[0],
+          skills[safeSkillIndex] ||
+          storedGig?.title ||
+          skills[0],
         );
 
         const requestsQuery = query(
@@ -342,22 +294,13 @@ export default function GigPreviewPage({
           const gigMatchTarget = {
             id: gigId || storedGig?.id || `${user.uid}-${safeSkillIndex}`,
             gigId: gigId || storedGig?.id,
-            title: ensureGigTitlePrefix(
-              String(normalizedGig?.title || storedGig?.title || skill),
-            ),
-            category: String(
-              normalizedGig?.category ||
-                storedGig?.category ||
-                inferCategory(skill),
-            ),
+            title: ensureGigTitlePrefix(String(normalizedGig?.title || storedGig?.title || skill)),
+            category: String(normalizedGig?.category || storedGig?.category || inferCategory(skill)),
           };
           const matchedRequests = completedSnap.docs
             .map((requestDoc) => requestDoc.data())
             .filter((request) => requestMatchesGig(gigMatchTarget, request));
-          const ratingSummary = buildGigRatingSummary(
-            gigMatchTarget,
-            matchedRequests,
-          );
+          const ratingSummary = buildGigRatingSummary(gigMatchTarget, matchedRequests);
 
           matchedRequests.forEach((request) => {
             const rating =
@@ -381,67 +324,53 @@ export default function GigPreviewPage({
           });
 
           const nextGig: GigPreviewData = {
-            gigId: gigId || storedGig?.id || `${user.uid}-${safeSkillIndex}`,
-            providerId: user.uid,
-            providerName: user.name || "Anonymous Member",
-            providerDegree: user.degree || "Undergraduate",
-            providerRole: resolveRole(user.role, "provider"),
-            university: user.university || "Sri Lankan University",
-            proficiency: profile?.proficiency || "Skilled",
-            skill,
-            skills,
-            title: ensureGigTitlePrefix(
-              String(normalizedGig?.title || storedGig?.title || skill),
-            ),
-            category: String(
-              normalizedGig?.category ||
-                storedGig?.category ||
-                inferCategory(skill),
-            ),
-            summary: String(
+          gigId: gigId || storedGig?.id || `${user.uid}-${safeSkillIndex}`,
+          providerId: user.uid,
+          providerName: user.name || "Anonymous Member",
+          providerDegree: user.degree || "Undergraduate",
+          providerRole: resolveRole(user.role, "provider"),
+          university: user.university || "Sri Lankan University",
+          proficiency: profile?.proficiency || "Skilled",
+          skill,
+          skills,
+          title: ensureGigTitlePrefix(String(normalizedGig?.title || storedGig?.title || skill)),
+          category: String(normalizedGig?.category || storedGig?.category || inferCategory(skill)),
+          summary:
+            String(
               normalizedGig?.summary ||
-                normalizedGig?.description ||
-                storedGig?.summary ||
-                storedGig?.description ||
-                normalizeSummary(profile?.bio) ||
-                `Practical ${skill} support from a verified student service provider.`,
+              normalizedGig?.description ||
+              storedGig?.summary ||
+            storedGig?.description ||
+            normalizeSummary(profile?.bio) ||
+              `Practical ${skill} support from a verified student service provider.`,
             ),
-            price:
-              (normalizedGig?.price as number | string | undefined) ||
-              storedGig?.price ||
-              "",
-            availability:
-              (Array.isArray(normalizedGig?.availability) &&
-                normalizedGig.availability.join(", ")) ||
-              (storedGig?.availability && storedGig.availability.join(", ")) ||
-              formatAvailability(profile?.availability),
-            rating: ratingSummary.rating,
-            reviews: ratingSummary.count,
-            reviewCards,
-            image: String(
+          price: (normalizedGig?.price as number | string | undefined) || storedGig?.price || "",
+          availability:
+            (Array.isArray(normalizedGig?.availability) && normalizedGig.availability.join(", ")) ||
+            (storedGig?.availability && storedGig.availability.join(", ")) ||
+            formatAvailability(profile?.availability),
+          rating: ratingSummary.rating,
+          reviews: ratingSummary.count,
+          reviewCards,
+          image:
+            String(
               storedGig?.image ||
-                storedGig?.sampleWorkUrl ||
-                (profile?.gigImages && profile.gigImages[safeSkillIndex]) ||
-                coverImage ||
-                normalizedGig?.image ||
-                normalizedGig?.sampleWorkUrl ||
-                getGigCoverForCategory(
-                  String(
-                    normalizedGig?.category ||
-                      storedGig?.category ||
-                      inferCategory(skill),
-                  ),
-                  String(normalizedGig?.title || storedGig?.title || skill),
-                  safeSkillIndex,
-                ),
+              storedGig?.sampleWorkUrl ||
+              (profile?.gigImages && profile.gigImages[safeSkillIndex]) ||
+              coverImage ||
+              normalizedGig?.image ||
+              normalizedGig?.sampleWorkUrl ||
+              getGigCoverForCategory(
+                String(normalizedGig?.category || storedGig?.category || inferCategory(skill)),
+                String(normalizedGig?.title || storedGig?.title || skill),
+                safeSkillIndex,
+              ),
             ),
-            value: `${20 + (safeSkillIndex % 3) * 5}`,
-            delivery:
-              storedGig?.delivery ||
-              formatAvailability(profile?.availability) ||
-              "Flexible",
-            match: 95,
-          };
+          value: `${20 + (safeSkillIndex % 3) * 5}`,
+          delivery:
+            storedGig?.delivery || formatAvailability(profile?.availability) || "Flexible",
+          match: 95,
+        };
 
           if (active) setGig(nextGig);
           if (active) setLoading(false);
@@ -476,9 +405,7 @@ export default function GigPreviewPage({
   const isOwnGig = userProfile && userProfile.uid === gig.providerId;
   const isGuestView = role === "guest";
   const activeRole = isGuestView ? "buyer" : role;
-  const editHref = !isGuestView
-    ? `/edit-gig/${role}/gig-${skillIndex}`
-    : "/get-started";
+  const editHref = !isGuestView ? `/edit-gig/${role}/gig-${skillIndex}` : "/get-started";
   const chatHref = !isGuestView
     ? `${scopedHref("/chats", role)}?peerId=${encodeURIComponent(gig.providerId)}&subject=${encodeURIComponent(gig.title)}&gigId=${encodeURIComponent(gig.gigId)}&category=${encodeURIComponent(gig.category)}&price=${encodeURIComponent(String(gig.price || ""))}&providerName=${encodeURIComponent(gig.providerName)}`
     : "/get-started";
@@ -590,8 +517,7 @@ export default function GigPreviewPage({
         href: `${scopedHref("/chats", gig.providerRole || "provider")}?chatId=${chatId}`,
       });
 
-      const nextRequestRole =
-        userProfile.role === "provider" ? "both" : activeRole;
+      const nextRequestRole = userProfile.role === "provider" ? "both" : activeRole;
 
       if (userProfile.role === "provider") {
         await updateDoc(doc(db, "users", buyerId), {
@@ -600,9 +526,7 @@ export default function GigPreviewPage({
         await refreshProfile();
       }
 
-      router.push(
-        `${scopedHref("/chats", nextRequestRole)}?chatId=${encodeURIComponent(chatId)}`,
-      );
+      router.push(`${scopedHref("/chats", nextRequestRole)}?chatId=${encodeURIComponent(chatId)}`);
     } catch (error) {
       console.error("Error creating direct request:", error);
     } finally {
@@ -623,9 +547,7 @@ export default function GigPreviewPage({
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center rounded-lg border border-slate-200 bg-white">
-        <p className="text-sm font-semibold text-slate-500">
-          Loading gig details...
-        </p>
+        <p className="text-sm font-semibold text-slate-500">Loading gig details...</p>
       </div>
     );
   }
@@ -647,9 +569,8 @@ export default function GigPreviewPage({
 
       <div className="rounded-[30px] border border-white/75 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(241,246,255,0.94))] p-5 shadow-[0_20px_64px_rgba(15,23,42,0.08)] backdrop-blur-sm lg:p-6">
         <p className="break-words text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-          {gig.category} <span className="px-1 text-slate-300">&gt;</span>{" "}
-          {gig.skill} <span className="px-1 text-slate-300">&gt;</span> Student
-          Skill Swap
+          {gig.category} <span className="px-1 text-slate-300">&gt;</span> {gig.skill}{" "}
+          <span className="px-1 text-slate-300">&gt;</span> Student Skill Swap
         </p>
 
         <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -665,9 +586,7 @@ export default function GigPreviewPage({
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-[#1453c4] shadow-sm">
               <StarIcon className="h-3.5 w-3.5 text-amber-400" />
-              {gig.reviews > 0
-                ? `${formatRatingLabel(gig.rating)} from ${gig.reviews} reviews`
-                : "New listing"}
+              {gig.reviews > 0 ? `${formatRatingLabel(gig.rating)} from ${gig.reviews} reviews` : "New listing"}
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-700 shadow-sm">
               <ClockIcon className="h-3.5 w-3.5" />
@@ -683,12 +602,12 @@ export default function GigPreviewPage({
             <div className="relative flex h-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(63,94,251,0.18),transparent_38%),linear-gradient(135deg,#eef4ff_0%,#f8fbff_40%,#edf8f6_100%)] px-5 py-5 md:px-7 md:py-7">
               <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] [background-size:22px_22px]" />
               <div className="relative h-[300px] w-full overflow-hidden rounded-[26px] border border-white/80 bg-white shadow-[0_24px_42px_rgba(15,23,42,0.08)] md:h-[390px] xl:h-full xl:min-h-[390px]">
-                <Image
+                <GigCoverImage
                   src={gig.image}
                   alt={gig.title}
-                  fill
+                  title={gig.title}
+                  category={gig.category}
                   priority
-                  unoptimized={isFirebaseStorageImage(gig.image)}
                   className="object-contain p-6 md:p-8"
                   sizes="(min-width: 1280px) 620px, 100vw"
                 />
@@ -697,13 +616,9 @@ export default function GigPreviewPage({
                 <button
                   type="button"
                   onClick={handleToggleFavorite}
-                  aria-label={
-                    isFavorited ? "Remove from favorites" : "Save to favorites"
-                  }
+                  aria-label={isFavorited ? "Remove from favorites" : "Save to favorites"}
                   className={`flex h-11 w-11 items-center justify-center rounded-full shadow-[0_12px_24px_rgba(15,23,42,0.12)] transition ${
-                    isFavorited
-                      ? "bg-red-500 text-white"
-                      : "bg-white/95 text-slate-700 hover:bg-red-50 hover:text-red-600"
+                    isFavorited ? "bg-red-500 text-white" : "bg-white/95 text-slate-700 hover:bg-red-50 hover:text-red-600"
                   }`}
                 >
                   <HeartIcon className="h-5 w-5" filled={isFavorited} />
@@ -796,17 +711,14 @@ function ProviderCard({
               Provider profile
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
-              <h2 className="text-[1.08rem] font-bold text-[#1453c4] hover:underline">
-                {gig.providerName}
-              </h2>
+              <h2 className="text-[1.08rem] font-bold text-[#1453c4] hover:underline">{gig.providerName}</h2>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#1453c4]">
                 <CheckCircleIcon className="h-3.5 w-3.5" />
                 Verified Provider
               </span>
             </div>
             <p className="mt-1.5 break-words text-sm leading-6 text-slate-600">
-              {gig.university} <span className="px-1.5 text-slate-300">|</span>{" "}
-              {gig.providerDegree}
+              {gig.university} <span className="px-1.5 text-slate-300">|</span> {gig.providerDegree}
               <span className="px-1.5 text-slate-300">|</span> {gig.proficiency}
             </p>
           </div>
@@ -849,9 +761,7 @@ function PackageCard({
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-100">
           Student swap package
         </p>
-        <p className="mt-1.5 text-[1.08rem] font-black leading-tight text-white">
-          Premium Student Swap
-        </p>
+        <p className="mt-1.5 text-[1.08rem] font-black leading-tight text-white">Premium Student Swap</p>
         <p className="mt-1.5 text-[12px] font-medium leading-5 text-blue-100">
           Clear pricing, quick communication, and focused support for your task.
         </p>
@@ -861,21 +771,15 @@ function PackageCard({
         <div className="rounded-[18px] border border-slate-100 bg-[linear-gradient(180deg,#f8fbff,#ffffff)] p-3 shadow-[0_10px_22px_rgba(15,23,42,0.03)]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                Price
-              </p>
-              <p className="mt-1 text-[1.35rem] font-black leading-none text-slate-950">
-                {formatPrice(gig.price)}
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Price</p>
+              <p className="mt-1 text-[1.35rem] font-black leading-none text-slate-950">{formatPrice(gig.price)}</p>
             </div>
             <p className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-white px-2.5 py-1 text-[11px] font-semibold text-teal-700 shadow-sm">
               <ClockIcon className="h-3 w-3" /> {gig.delivery}
             </p>
           </div>
 
-          <p className="mt-2 line-clamp-2 break-words text-[13px] leading-5 text-slate-600">
-            {gig.summary}
-          </p>
+          <p className="mt-2 line-clamp-2 break-words text-[13px] leading-5 text-slate-600">{gig.summary}</p>
         </div>
 
         <ul className="space-y-1.5 border-y border-slate-200 py-3 text-[13px] text-slate-700">
@@ -938,9 +842,7 @@ function InfoCard({
 }) {
   return (
     <article className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] lg:p-6">
-      <h3
-        className={`flex items-center gap-2 text-base font-bold ${titleClass}`}
-      >
+      <h3 className={`flex items-center gap-2 text-base font-bold ${titleClass}`}>
         {icon}
         {title}
       </h3>
@@ -960,9 +862,7 @@ function ReviewsSection({ reviews }: { reviews: ReviewData[] }) {
   if (reviews.length === 0) {
     return (
       <section className="space-y-3">
-        <h2 className="text-[1.4rem] font-bold text-slate-900">
-          Reviews for this service
-        </h2>
+        <h2 className="text-[1.4rem] font-bold text-slate-900">Reviews for this service</h2>
         <div className="rounded-[24px] border border-slate-200 bg-white px-5 py-8 text-sm text-slate-500 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
           No ratings or reviews yet.
         </div>
@@ -971,15 +871,13 @@ function ReviewsSection({ reviews }: { reviews: ReviewData[] }) {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-[1.4rem] font-bold text-slate-900">
-        Reviews for this service
-      </h2>
-      <div className="grid gap-3 md:grid-cols-2">
+      <section className="space-y-3">
+        <h2 className="text-[1.4rem] font-bold text-slate-900">Reviews for this service</h2>
+        <div className="grid gap-3 md:grid-cols-2">
         {reviews.slice(0, 2).map((review, index) => (
-          <ReviewCard
-            key={`${review.name}-${index}`}
-            review={review}
+            <ReviewCard
+              key={`${review.name}-${index}`}
+              review={review}
             accent={index % 2 === 0 ? "blue" : "teal"}
           />
         ))}
@@ -1026,9 +924,7 @@ function QuickFactsCard({ gig }: { gig: GigPreviewData }) {
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
             Service overview
           </p>
-          <h2 className="mt-1.5 text-[1.12rem] font-bold text-slate-900">
-            Gig Details
-          </h2>
+          <h2 className="mt-1.5 text-[1.12rem] font-bold text-slate-900">Gig Details</h2>
         </div>
         <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
           Essentials
@@ -1039,30 +935,22 @@ function QuickFactsCard({ gig }: { gig: GigPreviewData }) {
           <div className="grid gap-3 sm:grid-cols-3">
             {facts.map((fact) => (
               <div key={fact.label} className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                  {fact.label}
-                </p>
-                <p className="mt-1.5 break-words text-[1.02rem] font-semibold leading-6 text-slate-800">
-                  {fact.value}
-                </p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{fact.label}</p>
+                <p className="mt-1.5 break-words text-[1.02rem] font-semibold leading-6 text-slate-800">{fact.value}</p>
               </div>
             ))}
           </div>
         </div>
 
         <div className="rounded-[20px] border border-slate-100 bg-[linear-gradient(180deg,#f8fbff,#ffffff)] px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.03)]">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-            Availability
-          </p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Availability</p>
           {availability.days.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {availability.days.map((day) => (
                 <span
                   key={day.short}
                   className={`min-w-8 rounded-full px-2 py-1 text-center text-[10px] font-bold ${
-                    day.active
-                      ? "bg-blue-600 text-white"
-                      : "bg-slate-100 text-slate-500"
+                    day.active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
                   }`}
                 >
                   {day.short}
@@ -1070,9 +958,7 @@ function QuickFactsCard({ gig }: { gig: GigPreviewData }) {
               ))}
             </div>
           ) : (
-            <p className="mt-2 text-[1.02rem] font-semibold leading-7 text-slate-800">
-              {availability.label}
-            </p>
+            <p className="mt-2 text-[1.02rem] font-semibold leading-7 text-slate-800">{availability.label}</p>
           )}
         </div>
       </div>
@@ -1091,14 +977,12 @@ function formatPrice(value: number | string | undefined) {
 }
 
 function slugSegment(value: string) {
-  return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 80) || "gig"
-  );
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "gig";
 }
 
 function formatReviewDateLabel(value: unknown) {
@@ -1194,12 +1078,7 @@ async function resolveProviderGigCover(
   if (matchIndex < 0) return "";
 
   const matchedGig = profileGigs[matchIndex] as ProviderGigMatchItem;
-  return (
-    matchedGig.image ||
-    matchedGig.sampleWorkUrl ||
-    profile?.gigImages?.[matchIndex] ||
-    ""
-  );
+  return matchedGig.image || matchedGig.sampleWorkUrl || profile?.gigImages?.[matchIndex] || "";
 }
 
 function findMatchingProviderGigIndex(
@@ -1210,9 +1089,7 @@ function findMatchingProviderGigIndex(
   const targetCategory = normalizeGigMatchText(target.category);
 
   if (target.gigId) {
-    const idMatchIndex = profileGigs.findIndex(
-      (gig) => gig.id === target.gigId,
-    );
+    const idMatchIndex = profileGigs.findIndex((gig) => gig.id === target.gigId);
     if (idMatchIndex >= 0) return idMatchIndex;
   }
 
@@ -1231,10 +1108,7 @@ function findMatchingProviderGigIndex(
 
   if (targetCategory) {
     const categoryMatches = profileGigs
-      .map((gig, index) => ({
-        index,
-        category: normalizeGigMatchText(gig.category),
-      }))
+      .map((gig, index) => ({ index, category: normalizeGigMatchText(gig.category) }))
       .filter((item) => item.category === targetCategory);
     if (categoryMatches.length === 1) return categoryMatches[0].index;
   }
@@ -1276,55 +1150,28 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-function HeartIcon({
-  className,
-  filled = false,
-}: {
-  className?: string;
-  filled?: boolean;
-}) {
+function HeartIcon({ className, filled = false }: { className?: string; filled?: boolean }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth={filled ? 0 : 2}
-      aria-hidden="true"
-    >
+    <svg className={className} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? 0 : 2} aria-hidden="true">
       <path d="M12 21s-6.4-4.1-9-8.1C1 9.8 2.4 6.2 5.8 5.6c2.1-.4 3.8.6 5 2.3.2.3.3.4.4.4s.2-.1.4-.4c1.2-1.7 2.9-2.7 5-2.3 3.4.6 4.8 4.2 2.8 7.3C18.4 16.9 12 21 12 21z" />
     </svg>
   );
 }
 
+
+
 function CheckCircleIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
       <circle cx="12" cy="12" r="9" />
-      <path
-        d="M8 12.5l2.5 2.5L16 9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M8 12.5l2.5 2.5L16 9" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 function ClockIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -1333,13 +1180,7 @@ function ClockIcon({ className }: { className?: string }) {
 
 function MailIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
       <rect x="4" y="6" width="16" height="12" rx="2" />
       <path d="M4 8l8 5 8-5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>

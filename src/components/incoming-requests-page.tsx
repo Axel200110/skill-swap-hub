@@ -72,35 +72,14 @@ interface RequestData {
   providerDoneReminderSentAt?: TimestampLike;
 }
 
-const getLatestIncomingRequestMillis = (request: RequestData) =>
-  Math.max(
-    toMillis(request.providerReviewedAt),
-    toMillis(request.reviewSubmittedAt),
-    toMillis(request.reviewedAt),
-    toMillis(request.buyerReviewedAt),
-    toMillis(request.completedAt),
-    toMillis(request.deliveredAt),
-    toMillis(request.acceptedAt),
-    toMillis(request.updatedAt),
-    toMillis(request.createdAt),
-    0,
-  );
-
 const getRequestCreatedMillis = (request: RequestData) =>
   toMillis(request.createdAt) || toMillis(request.updatedAt) || 0;
 
-const sortIncomingRequestsLatestFirst = (items: RequestData[]) =>
+const sortIncomingRequestsNewestFirst = (items: RequestData[]) =>
   [...items].sort((a, b) => {
     const timeDifference =
-      getLatestIncomingRequestMillis(b) - getLatestIncomingRequestMillis(a);
+      getRequestCreatedMillis(b) - getRequestCreatedMillis(a);
     return timeDifference || b.id.localeCompare(a.id);
-  });
-
-const sortIncomingRequestsOldestFirst = (items: RequestData[]) =>
-  [...items].sort((a, b) => {
-    const timeDifference =
-      getRequestCreatedMillis(a) - getRequestCreatedMillis(b);
-    return timeDifference || a.id.localeCompare(b.id);
   });
 
 const GENERAL_REQUEST_STARTER_MESSAGE =
@@ -252,8 +231,7 @@ export default function IncomingRequestsPageContent({
               : request.buyerYearOfStudy || buyerMeta?.yearOfStudy || "",
         };
       });
-      hydratedDocs.sort((a, b) => b.id.localeCompare(a.id));
-      setRequests(hydratedDocs);
+      setRequests(sortIncomingRequestsNewestFirst(hydratedDocs));
       setFetching(false);
     };
 
@@ -320,8 +298,17 @@ export default function IncomingRequestsPageContent({
             providerId: data.providerId,
             providerName: data.providerName,
             gigId: data.gigId || "",
+            review: data.review,
+            providerReview: data.providerReview,
             updatedAt: data.updatedAt,
             createdAt: data.createdAt,
+            acceptedAt: data.acceptedAt,
+            deliveredAt: data.deliveredAt,
+            providerReviewedAt: data.providerReviewedAt,
+            buyerReviewedAt: data.buyerReviewedAt,
+            reviewSubmittedAt: data.reviewSubmittedAt,
+            reviewedAt: data.reviewedAt,
+            completedAt: data.completedAt,
             providerDoneReminderSentAt: data.providerDoneReminderSentAt,
           });
         });
@@ -339,50 +326,6 @@ export default function IncomingRequestsPageContent({
       unsubscribeDirect();
     };
   }, [userProfile]);
-
-  useEffect(() => {
-    if (!userProfile || fetching) return;
-
-    const reminderAgeMs = 3 * 24 * 60 * 60 * 1000;
-    const overdueRequests = requests.filter((request) => {
-      if (request.providerId !== userProfile.uid) return false;
-      if (request.status !== "working") return false;
-      if (toMillis(request.providerDoneReminderSentAt)) return false;
-
-      const baseTime = toMillis(request.updatedAt) || toMillis(request.createdAt);
-      return Boolean(baseTime && Date.now() - baseTime >= reminderAgeMs);
-    });
-
-    if (!overdueRequests.length) return;
-
-    overdueRequests.forEach((request) => {
-      const collectionName = request.sourceCollection || "requests";
-      const href = scopedHref("/incoming-requests", role);
-
-      void createNotification({
-        userId: userProfile.uid,
-        title: "Mark service as done",
-        description: `Please mark "${request.title}" as done if you have completed the work for ${request.buyerName}.`,
-        type: "request",
-        icon: "request",
-        tone: "indigo",
-        href,
-        destination: href,
-        metadata: {
-          kind: "provider_done_reminder",
-          requestId: request.id,
-          sourceCollection: collectionName,
-        },
-      });
-
-      void updateDoc(doc(db, collectionName, request.id), {
-        providerDoneReminderSentAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }).catch((err) => {
-        console.error("Error saving provider done reminder timestamp:", err);
-      });
-    });
-  }, [fetching, requests, role, userProfile]);
 
   const tabHref = (tab: IncomingRequestsTab) => `?tab=${tab}`;
 
@@ -450,7 +393,7 @@ export default function IncomingRequestsPageContent({
       {/* Only the selected workflow stage is rendered below. */}
       {activeTab === "new" && (
         <NewRequestsView
-          requests={sortIncomingRequestsOldestFirst(
+          requests={sortIncomingRequestsNewestFirst(
             requests.filter((r) => r.status === "pending"),
           )}
           role={role}
@@ -459,7 +402,7 @@ export default function IncomingRequestsPageContent({
       )}
       {activeTab === "accepted" && (
         <AcceptedView
-          requests={sortIncomingRequestsLatestFirst(
+          requests={sortIncomingRequestsNewestFirst(
             requests.filter(
               (r) =>
                 r.status === "working" ||
@@ -476,14 +419,16 @@ export default function IncomingRequestsPageContent({
       )}
       {activeTab === "completed" && (
         <CompletedView
-          requests={sortIncomingRequestsLatestFirst(
+          requests={sortIncomingRequestsNewestFirst(
             requests.filter((r) => r.status === "completed"),
           )}
         />
       )}
       {activeTab === "declined" && (
         <DeclinedView
-          requests={requests.filter((r) => r.status === "rejected")}
+          requests={sortIncomingRequestsNewestFirst(
+            requests.filter((r) => r.status === "rejected"),
+          )}
         />
       )}
     </section>
@@ -561,6 +506,7 @@ function NewRequestsView({
         providerId?: string;
         providerName?: string;
         requestStatus?: string;
+        acceptedAt?: unknown;
       } = {
         status,
         updatedAt: serverTimestamp(),
@@ -573,6 +519,7 @@ function NewRequestsView({
       if (status === "working" && userProfile) {
         updateData.providerId = userProfile.uid;
         updateData.providerName = userProfile.name || "Provider Partner";
+        updateData.acceptedAt = serverTimestamp();
       }
       await updateDoc(doc(db, collectionName, reqId), updateData);
 

@@ -21,6 +21,7 @@ interface AuthGuardProps {
 export default function AuthGuard({ requiredRole, children }: AuthGuardProps) {
   const { firebaseUser, userProfile, loading } = useAuth();
   const isSuspended = userProfile?.accountStatus === "suspended";
+  const isDeactivated = userProfile?.accountStatus === "deleted";
 
   const redirectTo = (href: string) => {
     if (typeof window === "undefined") return;
@@ -40,6 +41,13 @@ export default function AuthGuard({ requiredRole, children }: AuthGuardProps) {
     if (userProfile?.providerVerificationStatus === "rejected") {
       void signOut().finally(() => {
         redirectTo("/login?reason=verification-rejected");
+      });
+      return;
+    }
+
+    if (userProfile?.accountStatus === "deleted") {
+      void signOut().finally(() => {
+        redirectTo("/login");
       });
       return;
     }
@@ -93,6 +101,7 @@ export default function AuthGuard({ requiredRole, children }: AuthGuardProps) {
     !firebaseUser ||
     userProfile?.providerVerificationStatus === "rejected" ||
     isSuspended ||
+    isDeactivated ||
     isPendingAdminVerificationStatus(userProfile?.accountStatus) ||
     userProfile?.providerVerificationStatus === "pending" ||
     (userProfile &&
@@ -116,7 +125,7 @@ export default function AuthGuard({ requiredRole, children }: AuthGuardProps) {
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <a
-                href="mailto:admin@skillswaphub.lk"
+                href="mailto:skillswaphub2026@gmail.com"
                 className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-[#2b62e6] px-5 text-sm font-semibold text-white transition hover:bg-[#1f55cc]"
               >
                 Contact Admin

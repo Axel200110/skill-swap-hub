@@ -4,15 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  collection,
-  doc,
-  getDocs,
-  onSnapshot,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { collection, doc, getDocs, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
 import { buildGigRatingSummary } from "@/lib/gig-ratings";
@@ -21,17 +13,13 @@ import { formatRatingLabel } from "@/lib/ratings";
 import { type Role } from "@/lib/role-routes";
 import type { ProviderGig, UserProfile } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
-import {
-  AVAILABILITY_DAYS,
-  AVAILABILITY_TIME_SLOTS,
-  inferServiceCategory,
-} from "@/lib/platform";
+import { AVAILABILITY_DAYS, AVAILABILITY_TIME_SLOTS, inferServiceCategory } from "@/lib/platform";
 import { useLookupOptions } from "@/lib/lookups";
 import UniversityCombobox from "@/components/ui/university-combobox";
 import SelectField from "@/components/ui/select-field";
 import SharedGigDetailsModal from "@/components/gig-details-modal";
+import GigCoverImage from "@/components/ui/gig-cover-image";
 import { getGigCoverForCategory } from "@/lib/gig-covers";
-import { isFirebaseStorageImage } from "@/lib/image-urls";
 
 type GigCardData = {
   id: string;
@@ -61,43 +49,30 @@ type FindServicesPageContentProps = {
   role?: Role;
 };
 
-export default function FindServicesPageContent({
-  role,
-}: FindServicesPageContentProps) {
+export default function FindServicesPageContent({ role }: FindServicesPageContentProps) {
   const { userProfile } = useAuth();
   const searchParams = useSearchParams();
   const serviceCategories = useLookupOptions("serviceCategories");
   const timeSlotOptions = useLookupOptions("availabilityTimeSlots");
-  const availabilityFilters = [
-    "Any Time",
-    ...(timeSlotOptions.length
-      ? timeSlotOptions
-      : [...AVAILABILITY_TIME_SLOTS]),
-  ];
+  const availabilityFilters = ["Any Time", ...(timeSlotOptions.length ? timeSlotOptions : [...AVAILABILITY_TIME_SLOTS])];
   const [gigs, setGigs] = useState<GigCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [ratingsVersion, setRatingsVersion] = useState(0);
 
-  const [searchQuery, setSearchQuery] = useState(
-    () => searchParams.get("query") || "",
-  );
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("query") || "");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [universityFilter, setUniversityFilter] = useState("Any University");
   const [ratingFilter, setRatingFilter] = useState("Any Rating");
   const [availabilityFilter, setAvailabilityFilter] = useState("Any Time");
   const [weekdayFilters, setWeekdayFilters] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const hideOwnGigInMarketplace = role !== "both";
+  const hideOwnGigInMarketplace = Boolean(userProfile);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
       query(collection(db, "requests"), where("status", "==", "completed")),
       () => setRatingsVersion((value) => value + 1),
-      (err) =>
-        console.error(
-          "Error subscribing to live ratings in find services:",
-          err,
-        ),
+      (err) => console.error("Error subscribing to live ratings in find services:", err),
     );
 
     return () => unsubscribe();
@@ -107,18 +82,13 @@ export default function FindServicesPageContent({
     async function fetchGigs() {
       try {
         const usersRef = collection(db, "users");
-        const usersQuery = query(
-          usersRef,
-          where("role", "in", ["provider", "both"]),
-        );
+        const usersQuery = query(usersRef, where("role", "in", ["provider", "both"]));
         const usersSnapshot = await getDocs(usersQuery);
         const requestsSnapshot = await getDocs(
           query(collection(db, "requests"), where("status", "==", "completed")),
         );
 
-        const completedRequests = requestsSnapshot.docs.map((reqDoc) =>
-          reqDoc.data(),
-        );
+        const completedRequests = requestsSnapshot.docs.map((reqDoc) => reqDoc.data());
 
         const dbGigs: GigCardData[] = [];
 
@@ -135,15 +105,11 @@ export default function FindServicesPageContent({
           const profile = user.providerProfile;
           if (!profile) return;
 
-          const skills = profile.skills?.length
-            ? profile.skills
-            : ["Student Support"];
+          const skills = profile.skills?.length ? profile.skills : ["Student Support"];
           const storedGigs = (profile.gigs || []).filter(
             (gig) => (gig.status || "active") === "active",
           );
-          const providerRequests = completedRequests.filter(
-            (request) => request.providerId === user.uid,
-          );
+          const providerRequests = completedRequests.filter((request) => request.providerId === user.uid);
 
           const gigEntries: Array<{
             title: string;
@@ -154,17 +120,10 @@ export default function FindServicesPageContent({
             image: string;
           }> = storedGigs.length
             ? storedGigs.map((gig: ProviderGig, skillIndex) => ({
-                title: ensureGigTitlePrefix(
-                  gig.title || skills[skillIndex] || "Student Support",
-                ),
-                category:
-                  gig.category ||
-                  inferCategory(skills[skillIndex] || gig.title || "Support"),
+                title: ensureGigTitlePrefix(gig.title || skills[skillIndex] || "Student Support"),
+                category: gig.category || inferCategory(skills[skillIndex] || gig.title || "Support"),
                 price: gig.price || "",
-                summary:
-                  gig.summary ||
-                  gig.description ||
-                  `Practical support from a verified student.`,
+                summary: gig.summary || gig.description || `Practical support from a verified student.`,
                 description: gig.description || gig.summary || "",
                 image:
                   gig.image ||
@@ -179,26 +138,18 @@ export default function FindServicesPageContent({
                 title: ensureGigTitlePrefix(skill),
                 category: inferCategory(skill),
                 price: "",
-                summary:
-                  profile.bio ||
-                  `Practical ${skill.toLowerCase()} support from a verified student skill swap provider.`,
+                summary: profile.bio || `Practical ${skill.toLowerCase()} support from a verified student skill swap provider.`,
                 description: profile.bio || "",
                 image:
                   (profile.gigImages && profile.gigImages[skillIndex]) ||
-                  getGigCoverForCategory(
-                    inferCategory(skill),
-                    skill,
-                    skillIndex,
-                  ),
+                  getGigCoverForCategory(inferCategory(skill), skill, skillIndex),
               }));
 
           gigEntries.forEach((gigEntry, skillIndex) => {
             const gigId = storedGigs[skillIndex]?.id;
             const ratingSummary = buildGigRatingSummary(
               {
-                id:
-                  gigId ||
-                  `${user.uid}-${slugify(gigEntry.title)}-${skillIndex}`,
+                id: gigId || `${user.uid}-${slugify(gigEntry.title)}-${skillIndex}`,
                 gigId,
                 title: gigEntry.title,
                 category: gigEntry.category,
@@ -207,8 +158,7 @@ export default function FindServicesPageContent({
             );
 
             dbGigs.push({
-              id:
-                gigId || `${user.uid}-${slugify(gigEntry.title)}-${skillIndex}`,
+              id: gigId || `${user.uid}-${slugify(gigEntry.title)}-${skillIndex}`,
               gigId,
               providerId: user.uid,
               skillIndex,
@@ -227,7 +177,7 @@ export default function FindServicesPageContent({
               match: 95,
               image: gigEntry.image,
               points: 20 + (skillIndex % 3) * 5,
-              tags: [gigEntry.category, ...skills.slice(0, 2)].slice(0, 3),
+              tags: [gigEntry.category, ...(skills.slice(0, 2))].slice(0, 3),
               serviceType: "Service Gig",
             });
           });
@@ -243,7 +193,7 @@ export default function FindServicesPageContent({
     }
 
     fetchGigs();
-  }, [userProfile, ratingsVersion]);
+  }, [hideOwnGigInMarketplace, userProfile, ratingsVersion]);
 
   const updateFilters = (update: () => void) => {
     update();
@@ -253,11 +203,7 @@ export default function FindServicesPageContent({
   const filteredGigs = useMemo(() => {
     return gigs
       .filter((gig) => {
-        if (
-          hideOwnGigInMarketplace &&
-          userProfile &&
-          gig.providerId === userProfile.uid
-        ) {
+        if (hideOwnGigInMarketplace && userProfile && gig.providerId === userProfile.uid) {
           return false;
         }
 
@@ -271,18 +217,14 @@ export default function FindServicesPageContent({
 
         if (!matchesQuery) return false;
 
-        if (
-          categoryFilter !== "All Categories" &&
-          gig.category !== categoryFilter
-        ) {
+        if (categoryFilter !== "All Categories" && gig.category !== categoryFilter) {
           return false;
         }
 
         if (universityFilter && universityFilter !== "Any University") {
           const university = gig.university.toLowerCase();
           const filter = universityFilter.toLowerCase();
-          if (!university.includes(filter) && !filter.includes(university))
-            return false;
+          if (!university.includes(filter) && !filter.includes(university)) return false;
         }
 
         if (ratingFilter !== "Any Rating") {
@@ -291,27 +233,17 @@ export default function FindServicesPageContent({
         }
 
         if (availabilityFilter !== "Any Time") {
-          const availability = Array.isArray(gig.availability)
-            ? gig.availability
-            : [gig.availability];
-          if (
-            !availability.some((item) =>
-              item.toLowerCase().includes(availabilityFilter.toLowerCase()),
-            )
-          ) {
+          const availability = Array.isArray(gig.availability) ? gig.availability : [gig.availability];
+          if (!availability.some((item) => item.toLowerCase().includes(availabilityFilter.toLowerCase()))) {
             return false;
           }
         }
 
         if (weekdayFilters.length > 0) {
-          const availability = Array.isArray(gig.availability)
-            ? gig.availability
-            : [gig.availability];
+          const availability = Array.isArray(gig.availability) ? gig.availability : [gig.availability];
           if (
             !weekdayFilters.some((day) =>
-              availability.some((item) =>
-                item.toLowerCase().startsWith(day.toLowerCase()),
-              ),
+              availability.some((item) => item.toLowerCase().startsWith(day.toLowerCase())),
             )
           ) {
             return false;
@@ -321,25 +253,12 @@ export default function FindServicesPageContent({
         return true;
       })
       .sort((a, b) => b.match - a.match);
-  }, [
-    availabilityFilter,
-    categoryFilter,
-    gigs,
-    hideOwnGigInMarketplace,
-    ratingFilter,
-    searchQuery,
-    universityFilter,
-    userProfile,
-    weekdayFilters,
-  ]);
+  }, [availabilityFilter, categoryFilter, gigs, hideOwnGigInMarketplace, ratingFilter, searchQuery, universityFilter, userProfile, weekdayFilters]);
 
   // Pagination happens after filtering so page counts always match the results.
   const cardsPerPage = 6;
   const totalPages = Math.ceil(filteredGigs.length / cardsPerPage);
-  const currentGigs = filteredGigs.slice(
-    (currentPage - 1) * cardsPerPage,
-    currentPage * cardsPerPage,
-  );
+  const currentGigs = filteredGigs.slice((currentPage - 1) * cardsPerPage, currentPage * cardsPerPage);
 
   const previewHref = (gig: GigCardData) =>
     role
@@ -404,23 +323,15 @@ export default function FindServicesPageContent({
         searchQuery={searchQuery}
         setSearchQuery={(value) => updateFilters(() => setSearchQuery(value))}
         categoryFilter={categoryFilter}
-        setCategoryFilter={(value) =>
-          updateFilters(() => setCategoryFilter(value))
-        }
+        setCategoryFilter={(value) => updateFilters(() => setCategoryFilter(value))}
         universityFilter={universityFilter}
-        setUniversityFilter={(value) =>
-          updateFilters(() => setUniversityFilter(value))
-        }
+        setUniversityFilter={(value) => updateFilters(() => setUniversityFilter(value))}
         ratingFilter={ratingFilter}
         setRatingFilter={(value) => updateFilters(() => setRatingFilter(value))}
         availabilityFilter={availabilityFilter}
-        setAvailabilityFilter={(value) =>
-          updateFilters(() => setAvailabilityFilter(value))
-        }
+        setAvailabilityFilter={(value) => updateFilters(() => setAvailabilityFilter(value))}
         weekdayFilters={weekdayFilters}
-        setWeekdayFilters={(value) =>
-          updateFilters(() => setWeekdayFilters(value))
-        }
+        setWeekdayFilters={(value) => updateFilters(() => setWeekdayFilters(value))}
         serviceCategories={serviceCategories}
         availabilityOptions={availabilityFilters}
       />
@@ -457,10 +368,7 @@ function GigCard({
     }
 
     try {
-      const favorites = (userProfile.favorites || []) as Record<
-        string,
-        unknown
-      >[];
+      const favorites = (userProfile.favorites || []) as Record<string, unknown>[];
       let updatedFavorites;
 
       if (isFavorited) {
@@ -508,142 +416,111 @@ function GigCard({
 
   return (
     <>
-      <article className="flex min-h-[360px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_12px_rgba(15,23,42,0.03)] transition-shadow hover:shadow-md">
-        <div className="relative h-40 bg-slate-100">
-          <Image
-            src={gig.image}
-            alt={gig.title}
-            fill
-            unoptimized={isFirebaseStorageImage(gig.image)}
-            className="object-cover"
-            sizes="(min-width: 1024px) 320px, 100vw"
-          />
-          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-[#1453c4] shadow-sm">
-            {gig.category}
+    <article className="flex min-h-[360px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_4px_12px_rgba(15,23,42,0.03)] transition-shadow hover:shadow-md">
+      <div className="relative h-40 bg-slate-100">
+        <GigCoverImage
+          src={gig.image}
+          alt={gig.title}
+          title={gig.title}
+          category={gig.category}
+          className="object-cover"
+          sizes="(min-width: 1024px) 320px, 100vw"
+        />
+        <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-[#1453c4] shadow-sm">
+          {gig.category}
+        </span>
+        <div className="absolute right-3 top-3 flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={handleToggleFavorite}
+            aria-label={isFavorited ? "Remove this gig from favorites" : "Save this gig to favorites"}
+            className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
+              isFavorited ? "bg-red-500 text-white" : "bg-white/95 text-slate-700 hover:bg-red-50 hover:text-red-600"
+            }`}
+          >
+            <HeartIcon className="h-4.5 w-4.5" filled={isFavorited} />
+          </button>
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-slate-700 shadow-sm">
+            <StarIcon className="h-3.5 w-3.5 text-amber-400" />
+            {formatRatingLabel(gig.rating)}
           </span>
-          <div className="absolute right-3 top-3 flex flex-col items-end gap-2">
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col p-4">
+        <h2 className="line-clamp-2 text-[0.97rem] font-bold leading-6 text-slate-900">
+          {gig.title}
+        </h2>
+
+        <div className="mt-2 flex items-start gap-2 text-xs text-slate-500">
+          <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#2f66e7] text-[10px] font-bold text-white ring-2 ring-white">
+            {gig.providerImage && gig.providerImage.startsWith("/") ? (
+              <Image src={gig.providerImage} alt={gig.providerName} width={32} height={32} className="h-full w-full object-cover" />
+            ) : (
+              gig.providerName.charAt(0).toUpperCase()
+            )}
+          </span>
+          <div className="min-w-0">
+            <p className="line-clamp-2 text-[13px] font-semibold leading-5 text-slate-700">
+              {gig.providerName} <span className="font-medium text-slate-400">|</span>{" "}
+              <span className="font-medium text-slate-500">{gig.university}</span>
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-3 line-clamp-2 text-[12.5px] leading-5 text-slate-600">
+          {gig.summary}
+        </p>
+
+        <div className="mt-auto border-t border-slate-200 pt-3">
+          <div className="flex flex-col gap-2 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <span className="line-clamp-2 min-w-0">{availability}</span>
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold leading-none text-emerald-800 shadow-sm">
+              {formatPrice(gig.price)}
+            </span>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={handleToggleFavorite}
-              aria-label={
-                isFavorited
-                  ? "Remove this gig from favorites"
-                  : "Save this gig to favorites"
-              }
-              className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
-                isFavorited
-                  ? "bg-red-500 text-white"
-                  : "bg-white/95 text-slate-700 hover:bg-red-50 hover:text-red-600"
-              }`}
+              onClick={() => setDetailsOpen(true)}
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              <HeartIcon className="h-4.5 w-4.5" filled={isFavorited} />
+              View Gig
             </button>
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-slate-700 shadow-sm">
-              <StarIcon className="h-3.5 w-3.5 text-amber-400" />
-              {formatRatingLabel(gig.rating)}
-            </span>
+            <Link
+              href={requestHref}
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-[#2f66e7] px-2 text-xs font-semibold text-white transition hover:bg-[#2557cf]"
+            >
+              Request Now
+            </Link>
           </div>
         </div>
-
-        <div className="flex flex-1 flex-col p-4">
-          <h2 className="line-clamp-2 text-[0.97rem] font-bold leading-6 text-slate-900">
-            {gig.title}
-          </h2>
-
-          <div className="mt-2 flex items-start gap-2 text-xs text-slate-500">
-            <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#2f66e7] text-[10px] font-bold text-white ring-2 ring-white">
-              {gig.providerImage && gig.providerImage.startsWith("/") ? (
-                <Image
-                  src={gig.providerImage}
-                  alt={gig.providerName}
-                  width={32}
-                  height={32}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                gig.providerName.charAt(0).toUpperCase()
-              )}
-            </span>
-            <div className="min-w-0">
-              <p className="line-clamp-2 text-[13px] font-semibold leading-5 text-slate-700">
-                {gig.providerName}{" "}
-                <span className="font-medium text-slate-400">|</span>{" "}
-                <span className="font-medium text-slate-500">
-                  {gig.university}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          <p className="mt-3 line-clamp-2 text-[12.5px] leading-5 text-slate-600">
-            {gig.summary}
-          </p>
-
-          <div className="mt-auto border-t border-slate-200 pt-3">
-            <div className="flex flex-col gap-2 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-              <span className="line-clamp-2 min-w-0">{availability}</span>
-              <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold leading-none text-emerald-800 shadow-sm">
-                {formatPrice(gig.price)}
-              </span>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setDetailsOpen(true)}
-                className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                View Gig
-              </button>
-              <Link
-                href={requestHref}
-                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#2f66e7] px-2 text-xs font-semibold text-white transition hover:bg-[#2557cf]"
-              >
-                Request Now
-              </Link>
-            </div>
-          </div>
-        </div>
-      </article>
-      {detailsOpen ? (
-        <SharedGigDetailsModal
-          gig={{
-            title: gig.title,
-            category: gig.category,
-            price: formatPrice(gig.price),
-            providerName: gig.providerName,
-            ratingLabel:
-              gig.reviews > 0
-                ? `${formatRatingLabel(gig.rating)} rating`
-                : "New",
-            summary: gig.summary,
-            description: gig.description,
-            availability: gig.availability,
-            image: gig.image,
-          }}
-          previewHref={previewHref}
-          onClose={() => setDetailsOpen(false)}
-        />
-      ) : null}
+      </div>
+    </article>
+    {detailsOpen ? (
+      <SharedGigDetailsModal
+        gig={{
+          title: gig.title,
+          category: gig.category,
+          price: formatPrice(gig.price),
+          providerName: gig.providerName,
+          ratingLabel: gig.reviews > 0 ? `${formatRatingLabel(gig.rating)} rating` : "New",
+          summary: gig.summary,
+          description: gig.description,
+          availability: gig.availability,
+          image: gig.image,
+        }}
+        previewHref={previewHref}
+        onClose={() => setDetailsOpen(false)}
+      />
+    ) : null}
     </>
   );
 }
 
-function HeartIcon({
-  className,
-  filled = false,
-}: {
-  className?: string;
-  filled?: boolean;
-}) {
+function HeartIcon({ className, filled = false }: { className?: string; filled?: boolean }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth={filled ? 0 : 2}
-      aria-hidden="true"
-    >
+    <svg className={className} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? 0 : 2} aria-hidden="true">
       <path d="M12 21s-6.4-4.1-9-8.1C1 9.8 2.4 6.2 5.8 5.6c2.1-.4 3.8.6 5 2.3.2.3.3.4.4.4s.2-.1.4-.4c1.2-1.7 2.9-2.7 5-2.3 3.4.6 4.8 4.2 2.8 7.3C18.4 16.9 12 21 12 21z" />
     </svg>
   );
@@ -651,12 +528,7 @@ function HeartIcon({
 
 function StarIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M12 3l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8-5.4 2.8 1-6-4.3-4.2 6-.9L12 3z" />
     </svg>
   );
@@ -679,10 +551,7 @@ function FiltersSidebar(props: {
   availabilityOptions: string[];
 }) {
   const filterConfig = [
-    {
-      label: "Category",
-      options: ["All Categories", ...props.serviceCategories],
-    },
+    { label: "Category", options: ["All Categories", ...props.serviceCategories] },
     { label: "University", options: ["Any University"] },
     { label: "Rating", options: ["Any Rating", "4.5+", "4.0+"] },
     { label: "Availability", options: props.availabilityOptions },
@@ -693,9 +562,7 @@ function FiltersSidebar(props: {
       {/* Search and matching filters */}
       <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_26px_rgba(15,23,42,0.03)] scrollbar-none sm:p-5 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:min-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">
-            Find Gig Profiles
-          </h1>
+          <h1 className="text-xl font-bold text-slate-900">Find Gig Profiles</h1>
           <p className="mt-1 text-xs leading-normal text-slate-500">
             Discover student gigs that match the skill you need.
           </p>
@@ -725,8 +592,7 @@ function FiltersSidebar(props: {
 
             const selectHandler = (value: string) => {
               if (filter.label === "Category") props.setCategoryFilter(value);
-              else if (filter.label === "University")
-                props.setUniversityFilter(value);
+              else if (filter.label === "University") props.setUniversityFilter(value);
               else if (filter.label === "Rating") props.setRatingFilter(value);
               else props.setAvailabilityFilter(value);
             };
@@ -754,14 +620,13 @@ function FiltersSidebar(props: {
                     label={filter.label}
                     value={weekdayValue}
                     onChange={(value) =>
-                      props.setWeekdayFilters(
-                        value === "Any Day" ? [] : [value],
-                      )
+                      props.setWeekdayFilters(value === "Any Day" ? [] : [value])
                     }
                     options={["Any Day", ...AVAILABILITY_DAYS]}
                     labelClassName="text-[10px] font-bold uppercase tracking-wider text-slate-400"
                     className="h-9 px-2.5 text-xs text-slate-700"
                   />
+                  {/*
                   <SelectField
                     label="Time"
                     value={selectValue}
@@ -770,10 +635,11 @@ function FiltersSidebar(props: {
                     labelClassName="sr-only"
                     className="h-9 px-2.5 text-xs text-slate-700"
                   />
+                  */}
                 </div>
               );
             }
-
+ 
             return (
               <SelectField
                 key={filter.label}
@@ -886,13 +752,7 @@ function slugify(value: string) {
 
 function SearchIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
       <circle cx="11" cy="11" r="7" />
       <path d="M20 20l-3-3" strokeLinecap="round" />
     </svg>

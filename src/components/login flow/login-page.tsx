@@ -21,6 +21,7 @@ import {
   STUDENT_PROOF_TYPES,
   type StudentProofType,
 } from "@/lib/platform";
+import { formatReportId } from "@/lib/moderation";
 import SelectField from "@/components/ui/select-field";
 import { useAuth } from "@/context/AuthContext";
 
@@ -437,6 +438,7 @@ function SuspendedAccountModal({
     profile.suspensionReason?.trim() ||
     profile.adminSuspensionReason?.trim() ||
     "An admin suspended this account. Please contact support for more information.";
+  const reference = getSuspensionReference(profile, reason);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/35 px-4 py-8 backdrop-blur-md">
@@ -464,22 +466,20 @@ function SuspendedAccountModal({
           </h3>
           <p className="mt-3 text-sm leading-6 text-slate-600">{reason}</p>
 
-          {profile.suspensionReportId || profile.suspensionRequestId ? (
+          {reference ? (
             <div className="mt-5 rounded-2xl border border-red-100 bg-red-50/80 p-4">
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-600">
                 Reference
               </p>
               <p className="mt-2 text-sm leading-6 text-red-900">
-                {profile.suspensionReportId
-                  ? `Report ID: ${profile.suspensionReportId}`
-                  : `Request ID: ${profile.suspensionRequestId}`}
+                {reference}
               </p>
             </div>
           ) : null}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <a
-              href="mailto:admin@skillswaphub.lk"
+              href="mailto:skillswaphub2026@gmail.com"
               className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-[#2b62e6] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1f55cc]"
             >
               Contact Admin
@@ -496,6 +496,27 @@ function SuspendedAccountModal({
       </div>
     </div>
   );
+}
+
+function getSuspensionReference(profile: UserProfile, reason: string) {
+  const reportReference =
+    extractReportReference(reason) ||
+    extractReportReference(profile.suspensionTitle || "") ||
+    extractReportReference(profile.adminSuspensionReason || "") ||
+    (profile.suspensionReportId ? formatReportId(profile.suspensionReportId) : "");
+
+  if (reportReference) {
+    return `Report ID: ${reportReference}`;
+  }
+
+  return profile.suspensionRequestId
+    ? `Request ID: ${profile.suspensionRequestId}`
+    : "";
+}
+
+function extractReportReference(value: string) {
+  const match = value.match(/#?ISS-[A-Z0-9]+/i);
+  return match ? formatReportId(match[0]) : "";
 }
 
 function RejectedVerificationModal({

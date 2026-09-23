@@ -10,19 +10,37 @@ import {
   reauthenticateWithCredential,
   updatePassword,
 } from "firebase/auth";
-import { changeSignedInEmail, type UserProfile } from "@/lib/auth";
-import { AVAILABILITY_DAYS, AVAILABILITY_TIME_SLOTS } from "@/lib/platform";
+import { changeSignedInEmail, deactivateAccount, type UserProfile } from "@/lib/auth";
+import { AVAILABILITY_DAYS } from "@/lib/platform";
 import { useLookupOptions } from "@/lib/lookups";
 import { propagateUserProfileReferences } from "@/lib/user-profile-propagation";
 import {
   getVerificationBadge,
   type IdentityRole,
 } from "@/lib/identity-badges";
+import ModalPortal from "@/components/ui/modal-portal";
 
 export type Role = "buyer" | "provider" | "both";
 
 const MAX_PROFILE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
 const PROFILE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+function getSelectedAvailabilityDays(availability: string[], days: string[]) {
+  const selectedDays = new Set<string>();
+
+  availability.forEach((slot) => {
+    const normalizedSlot = slot.trim();
+    const matchingDay = days.find((day) =>
+      normalizedSlot === day || normalizedSlot.startsWith(`${day} `),
+    );
+
+    if (matchingDay) {
+      selectedDays.add(matchingDay);
+    }
+  });
+
+  return Array.from(selectedDays);
+}
 
 function compressImageToBase64(
   file: File,
@@ -132,7 +150,6 @@ function ProfileSettingsForm({
   const showAvailability = role === "provider" || role === "both";
   const serviceCategories = useLookupOptions("serviceCategories");
   const availabilityDayOptions = useLookupOptions("availabilityDays");
-  const timeSlotOptions = useLookupOptions("availabilityTimeSlots");
   const weeklyAvailabilityDays = useMemo(
     () => (availabilityDayOptions.length ? availabilityDayOptions : [...AVAILABILITY_DAYS]),
     [availabilityDayOptions],
@@ -174,6 +191,12 @@ function ProfileSettingsForm({
   const [availability, setAvailability] = useState<string[]>(
     userProfile.providerProfile?.availability || [],
   );
+  const [selectedDays, setSelectedDays] = useState<string[]>(() =>
+    getSelectedAvailabilityDays(
+      userProfile.providerProfile?.availability || [],
+      weeklyAvailabilityDays,
+    ),
+  );
 
   // These switches map directly to the nested Firestore settings object.
   const [emailNotifications] = useState(
@@ -203,72 +226,6 @@ function ProfileSettingsForm({
   const profileSubline = isNonStudentBuyer
     ? userProfile.email || "Non-student buyer"
     : [degree, university].filter(Boolean).join(" - ");
-  const availabilityPeriods = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...(timeSlotOptions.length ? timeSlotOptions : [...AVAILABILITY_TIME_SLOTS]),
-          ...availability
-            .map((slot) => {
-              const normalizedSlot = slot.trim();
-              const matchingDay = weeklyAvailabilityDays.find((day) =>
-                normalizedSlot.startsWith(`${day} `),
-              );
-              return matchingDay ? normalizedSlot.slice(matchingDay.length).trim() : "";
-            })
-            .filter(Boolean),
-        ]),
-      ),
-    [availability, timeSlotOptions, weeklyAvailabilityDays],
-  );
-
-  const selectedDays = useMemo(() => {
-    if (!availability.length) {
-      return [] as string[];
-    }
-
-    const nextDays = new Set<string>();
-
-    availability.forEach((slot) => {
-      const normalizedSlot = slot.trim();
-      const matchingDay = weeklyAvailabilityDays.find((day) =>
-        normalizedSlot.startsWith(`${day} `),
-      );
-
-      if (matchingDay) {
-        nextDays.add(matchingDay);
-      }
-    });
-
-    return Array.from(nextDays);
-  }, [availability, weeklyAvailabilityDays]);
-
-  const selectedPeriods = useMemo(() => {
-    if (!availability.length) {
-      return [] as string[];
-    }
-
-    const nextPeriods = new Set<string>();
-
-    availability.forEach((slot) => {
-      const normalizedSlot = slot.trim();
-      const matchingDay = weeklyAvailabilityDays.find((day) =>
-        normalizedSlot.startsWith(`${day} `),
-      );
-
-      if (!matchingDay) {
-        return;
-      }
-
-      const period = normalizedSlot.slice(matchingDay.length).trim();
-      if (availabilityPeriods.includes(period)) {
-        nextPeriods.add(period);
-      }
-    });
-
-    return Array.from(nextPeriods);
-  }, [availability, availabilityPeriods, weeklyAvailabilityDays]);
-
   // Build one update payload so Firestore receives an atomic profile change.
   const handleSaveProfile = async () => {
     setIsSaving(true);
@@ -427,27 +384,13 @@ function ProfileSettingsForm({
     setNewOfferedSkill("");
   };
 
-  const syncAvailability = (days: string[], periods: string[]) => {
-    const combinations = days.flatMap((day) =>
-      periods.map((period) => `${day} ${period}`),
-    );
-    setAvailability(combinations);
-  };
-
   const toggleDay = (day: string) => {
     const nextDays = selectedDays.includes(day)
       ? selectedDays.filter((value) => value !== day)
       : [...selectedDays, day];
 
-    syncAvailability(nextDays, selectedPeriods);
-  };
-
-  const togglePeriod = (period: string) => {
-    const nextPeriods = selectedPeriods.includes(period)
-      ? selectedPeriods.filter((value) => value !== period)
-      : [...selectedPeriods, period];
-
-    syncAvailability(selectedDays, nextPeriods);
+    setSelectedDays(nextDays);
+    setAvailability(nextDays);
   };
 
   return (
@@ -632,10 +575,10 @@ function ProfileSettingsForm({
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-slate-500">
-                    Select your available days and time periods for your profile.
+                    Select your available days for your profile.
                   </p>
                   <span className="text-xs font-semibold text-slate-400">
-                    {availability.length} slot{availability.length === 1 ? "" : "s"} selected
+                    {selectedDays.length} day{selectedDays.length === 1 ? "" : "s"} selected
                   </span>
                 </div>
 
@@ -679,7 +622,8 @@ function ProfileSettingsForm({
                       })}
                     </div>
                   </div>
-
+ 
+                  {/*
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
                       Time Periods
@@ -717,6 +661,7 @@ function ProfileSettingsForm({
                       })}
                     </div>
                   </div>
+                  */}
                 </div>
               </div>
             </section>
@@ -880,7 +825,7 @@ function ProfileSettingsForm({
             profileVisibility={profileVisibility}
             onProfileVisibilityChange={setProfileVisibility}
           />
-          <DangerZone />
+          <DangerZone userId={userProfile.uid} />
         </div>
       </div>
     </div>
@@ -1185,26 +1130,109 @@ function PrivacySettings({
   );
 }
 
-function DangerZone() {
+function DangerZone({ userId }: { userId: string }) {
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [deactivationError, setDeactivationError] = useState("");
+
+  const handleDeactivate = async () => {
+    setIsDeactivating(true);
+    setDeactivationError("");
+
+    try {
+      await deactivateAccount(userId);
+      window.location.replace("/login");
+    } catch (error) {
+      setDeactivationError(
+        error instanceof Error
+          ? error.message
+          : "Could not deactivate your account. Please try again.",
+      );
+      setShowConfirmation(false);
+      setIsDeactivating(false);
+    }
+  };
+
   return (
-    <section className="rounded-xl border border-red-200 bg-red-50/50 p-5">
-      <div className="flex flex-col gap-3">
-        <div>
-          <h2 className="text-sm font-bold text-red-700">Danger Zone</h2>
-          <p className="mt-1 text-sm font-medium leading-relaxed text-slate-600">
-            Permanently deactivate your account. This action is irreversible and
-            all your data, including swap history, will be removed.
-          </p>
+    <>
+      <section className="rounded-xl border border-red-200 bg-red-50/50 p-5">
+        <div className="flex flex-col gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-red-700">Danger Zone</h2>
+            <p className="mt-1 text-sm font-medium leading-relaxed text-slate-600">
+              Deactivate your account, hide your public profile, and unpublish your gigs.
+              Your completed swap and review history will be retained for platform records.
+            </p>
+          </div>
+          {deactivationError ? (
+            <p className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700">
+              {deactivationError}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              setDeactivationError("");
+              setShowConfirmation(true);
+            }}
+            className="h-11 w-full rounded-lg border border-red-600 bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700"
+          >
+            Deactivate Account
+          </button>
         </div>
-        <button
-          type="button"
-          disabled
-          className="h-11 w-full rounded-lg border border-red-200 bg-red-200 px-4 text-sm font-semibold text-red-400 cursor-not-allowed"
-        >
-          Deactivate Account
-        </button>
-      </div>
-    </section>
+      </section>
+
+      {showConfirmation ? (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+            onClick={() => {
+              if (!isDeactivating) setShowConfirmation(false);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="deactivate-account-title"
+              className="w-full max-w-md rounded-2xl border border-red-100 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-600">
+                Account Deactivation
+              </p>
+              <h2
+                id="deactivate-account-title"
+                className="mt-2 text-xl font-semibold text-slate-900"
+              >
+                Deactivate this account?
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                You will be signed out immediately. Your profile and gigs will no longer be
+                public, and you will need support assistance to restore access.
+              </p>
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmation(false)}
+                  disabled={isDeactivating}
+                  className="h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeactivate()}
+                  disabled={isDeactivating}
+                  className="h-11 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                >
+                  {isDeactivating ? "Deactivating..." : "Deactivate"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      ) : null}
+    </>
   );
 }
 
@@ -1321,21 +1349,6 @@ function LockIcon({ className }: IconProps) {
       <path d="M6 10h12v10H6z" />
       <path d="M8 10V7a4 4 0 0 1 8 0v3" />
       <path d="M12 14v2" />
-    </svg>
-  );
-}
-
-function BellIcon({ className }: IconProps) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path d="M15 17H9m8-4V9a5 5 0 0 0-10 0v4l-2 2h14z" />
-      <path d="M10 17a2 2 0 0 0 4 0" />
     </svg>
   );
 }
