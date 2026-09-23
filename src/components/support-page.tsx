@@ -219,7 +219,7 @@ export default function SupportPage() {
               <div className="mt-6 grid gap-x-8 gap-y-4 text-[14px] text-white/95 sm:mt-8 sm:grid-cols-2 sm:gap-y-5">
                 <div className="flex items-center gap-3">
                   <MailIcon className="h-[18px] w-[18px] shrink-0" />
-                  <span>support@skillswap.lk</span>
+                  <span>skillswaphub2026@gmail.com</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <HelpDeskIcon className="h-[18px] w-[18px] shrink-0" />

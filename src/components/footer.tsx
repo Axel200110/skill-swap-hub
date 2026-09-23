@@ -65,10 +65,7 @@ export default function SiteFooter({ role = "guest" }: SiteFooterProps) {
     {
       title: "Support",
       links: [
-        {
-          label: "skillswaphub2026@gmail.com",
-          href: "mailto:skillswaphub2026@gmail.com",
-        },
+        { label: "Contact Us", href: `${helpCenterHref}#contact-section` },
         { label: "Help Center", href: helpCenterHref },
         { label: "Privacy Policy", documentId: "privacy" },
       ],
