@@ -92,7 +92,7 @@ export default function AboutPage({
           </div>
           <div className="ssh-hero-art relative hidden items-end justify-center lg:flex lg:justify-end lg:-mb-10 self-end lg:translate-x-16">
             <Image
-              src="/img/about%20img.png"
+              src="/img/about-img.png"
               alt="Student using a laptop"
               width={720}
               height={720}
