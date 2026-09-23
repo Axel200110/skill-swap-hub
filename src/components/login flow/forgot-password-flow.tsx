@@ -6,9 +6,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { collection, getDocs, query, where } from "firebase/firestore";
 import { resetPassword } from "@/lib/auth";
-import { db } from "@/lib/firebase";
 
 type Badge = {
   label: string;
@@ -47,42 +45,6 @@ export default function ForgotPasswordFlow() {
     setServerError("");
     try {
       const trimmedEmail = data.email.trim();
-      const normalizedEmail = trimmedEmail.toLowerCase();
-
-      const emailQueries =
-        normalizedEmail === trimmedEmail
-          ? [
-              query(
-                collection(db, "users"),
-                where("email", "==", normalizedEmail),
-              ),
-            ]
-          : [
-              query(
-                collection(db, "users"),
-                where("email", "==", trimmedEmail),
-              ),
-              query(
-                collection(db, "users"),
-                where("email", "==", normalizedEmail),
-              ),
-            ];
-
-      let hasRegisteredUser = false;
-      for (const userQuery of emailQueries) {
-        const userSnapshot = await getDocs(userQuery);
-        if (!userSnapshot.empty) {
-          hasRegisteredUser = true;
-          break;
-        }
-      }
-
-      if (!hasRegisteredUser) {
-        setServerError(
-          "No Skill Swap Hub account was found for that email.",
-        );
-        return;
-      }
 
       // Firebase owns the secure reset link and password update page.
       await resetPassword(trimmedEmail);

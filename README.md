@@ -37,6 +37,35 @@ The checked-in template now includes:
 
 Add any LAN or preview origin you use before testing uploads there, then re-apply the CORS file to the bucket.
 
+## Deploy on AWS Amplify
+
+This app is ready for AWS Amplify Hosting with the checked-in [`amplify.yml`](./amplify.yml). The build uses `npm ci`, `npm run build`, and publishes the Next.js `.next` output.
+
+Before deploying, add the variables from [`env.example`](./env.example) in Amplify Console under **App settings > Environment variables**:
+
+```bash
+NEXT_PUBLIC_FIREBASE_API_KEY
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+NEXT_PUBLIC_FIREBASE_PROJECT_ID
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+NEXT_PUBLIC_FIREBASE_APP_ID
+```
+
+Deploy flow:
+
+1. Push this repository to GitHub, GitLab, Bitbucket, or CodeCommit.
+2. Open AWS Amplify Console and choose **Create new app**.
+3. Connect the repository and branch.
+4. Confirm the build settings from `amplify.yml`.
+5. Add the Firebase environment variables above.
+6. Choose **Save and deploy**.
+
+After Amplify gives you the production URL, add that domain in Firebase:
+
+- Firebase Authentication: add the Amplify domain under **Authentication > Settings > Authorized domains**.
+- Firebase Storage CORS: add the Amplify domain to `storage-cors.json`, then re-apply the CORS config to the storage bucket.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
