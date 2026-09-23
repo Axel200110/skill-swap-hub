@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { loginAdmin } from "@/lib/auth";
@@ -63,11 +64,13 @@ export default function AdminLoginPage() {
       />
       <section className="relative w-full max-w-[430px] rounded-[28px] border border-white/70 bg-white/88 px-10 py-10 shadow-[0_24px_70px_rgba(15,23,42,0.16)] backdrop-blur-md">
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-white/70 bg-white p-1.5 shadow-[0_14px_30px_rgba(37,99,235,0.18)]">
-            <img
+          <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-white/70 bg-white p-1.5 shadow-[0_14px_30px_rgba(37,99,235,0.18)]">
+            <Image
               src="/img/Skill Swap Hub Logo icon.png"
               alt="Skill Swap Hub logo"
-              className="h-full w-full object-contain"
+              fill
+              sizes="64px"
+              className="object-contain p-1.5"
             />
           </div>
           <h1 className="mt-5 text-[26px] font-bold leading-none text-[#242936]">Admin Panel</h1>
